@@ -41,21 +41,6 @@ def addCookies(s, cookies):
     s.cookies = add_dict_to_cookiejar(s.cookies, cookies)
 
 def login(s, username, password):
-    headers = {
-        'Host' : 'www.hackerrank.com',
-        'User-Agent' : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.11; rv:41.0) Gecko/20100101 Firefox/41.0',
-        'Accept' : 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language' : 'en-US,en;q=0.5',
-        'Accept-Encoding' : 'gzip, deflate',
-        #'Content-Type' : 'application/x-www-form-urlencoded; charset=UTF-8',
-        #'Content-Type' : 'application/json; charset=utf-8',
-        #'X-Requested-With' : 'XMLHttpRequest',
-        'Connection' : 'keep-alive',
-        'Referer' : 'https://www.hackerrank.com/login',
-        #'Cache-Control' : 'max-age=0'
-    }
-    #s.headers.update(headers)
-
     payload = {
         'login' : username,
         'password' : password,
@@ -64,43 +49,42 @@ def login(s, username, password):
     csrf = None
     r = s.get('https://www.hackerrank.com/login')
     for line in r.text.split("\n"):
-        if ("csrf-token" in line):
+        if ('csrf-token' in line):
             csrf = re.sub(r"<meta content=\"([^\"]+)\".*", r"\1", line)
             break
     csrfDict = {'X-CSRF-TOKEN': csrf}
     r = s.post('https://www.hackerrank.com/auth/login', data=payload, headers=csrfDict)
-
-    #r = s.get("https://www.hackerrank.com/rest/contests/master/hackers/me?&_=1457459220026")
-    #print(r.text)
+    return r.status_code
 
 def getSubmissions(s, batchSize = -1):
     # get total submission count
-    # returns '{"models":[],"total":152}'
-
-    r = s.get('https://www.hackerrank.com/rest/contests/master/submissions/?limit=0')
+    r = s.get('https://www.hackerrank.com/rest/contests/master/submissions/grouped?limit=0')
     total = r.json()['total']
     print(r.text)
     if batchSize <= 0:
         batchSize = total
 
-    exit()
-    # get submissions in batches (useful for slower connections)
-    submissionModels = []
-
     offset = 0
     while offset < total:
-        params = {'offset' : offset, 'limit' : 5}
-        req = s.get('https://www.hackerrank.com/rest/contests/master/submissions/', params = params)
-        submissionModels += req.json()['models']
+        submissions = getSubmissionsByChallenge(s, offset, 10) # batchSize)
         offset += batchSize
+        challenges = getChallenges(submissions.keys())
+        submissions = getSubmissions(submissions.values())
+    return None
 
-    # https://www.hackerrank.com/rest/contests/master/challenges/similarpair/submissions/?offset=0&limit=10&_=1454867740795
-    for model in submissionModels:
-        getSubmissionDetails(model)
+def getChallenges(challengeIds):
+    pass
 
-def getSubmissionDetails(model):
-    print("DETAILS")
-    print(model['challenge']['slug'] + ' ' + model['status'])
+def getSubmissions(submissionIds):
+    pass
+
+def getSubmissionsByChallenge(s, offset, limit):
+    params = {'offset':offset, 'limit':limit}
+    r = s.get('https://www.hackerrank.com/rest/contests/master/submissions/grouped', params = params)
+    submissions = {}
+    for subs in [model['submissions'] for model in r.json()["models"]]:
+        submissions[subs[0]["challenge_id"]] = [s['id'] for s in subs]
+    return submissions
 
 def logout(s):
     r = s.delete('https://www.hackerrank.com/auth/logout')
