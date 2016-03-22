@@ -12,6 +12,7 @@
  https://www.hackerrank.com/rest/contests/master/challenges/{slug}/submissions/?offset=0&limit=10
 """
 
+import re
 import argparse
 import os.path
 from itertools import chain
@@ -43,6 +44,7 @@ def login(s, username, password, csrfToken):
         'remember_me' : 'false',
     }
     csrfHeader = {'X-CSRF-TOKEN': csrfToken}
+    print('logging in. ', csrfHeader)
     return s.post('https://www.hackerrank.com/auth/login', data=data, headers=csrfHeader)
 
 def getModelGenerator(s, batchSize = -1):
@@ -61,6 +63,7 @@ def getModelGenerator(s, batchSize = -1):
 
 def getSubmissionsByChallengeGrouped(s, offset, limit):
     params = {'offset':offset, 'limit':limit}
+    print('getting submission batch ', params)
     r = s.get('https://www.hackerrank.com/rest/contests/master/submissions/grouped', params=params)
     submissions = {}
     for subs in [m['submissions'] for m in r.json()["models"]]:
@@ -69,6 +72,7 @@ def getSubmissionsByChallengeGrouped(s, offset, limit):
     return submissions
 
 def getChallenges(s, challengeIds):
+    print('requesting challenges ', challengeIds)
     challenges = {}
     for c_id in challengeIds:
         r = s.get('https://www.hackerrank.com/rest/contests/master/challenges/' + str(c_id))
@@ -76,28 +80,26 @@ def getChallenges(s, challengeIds):
     return challenges
 
 def getSubmissions(s, submissionIds):
+    print('requesting submissions ', submissionIds)
     submissions = {}
     for s_id in submissionIds:
         r = s.get('https://www.hackerrank.com/rest/contests/master/submissions/' + str(s_id))
         submissions[s_id] = r.json()['model']
     return submissions
 
-def initFolder(ids, challenges, submissions):
-    for c_id in ids.keys():
-        chal = challenges[c_id]
-        makedirs(chal['slug'])
-
 def doGitStuff(modelGen):
+
     try:
-        makedirs('../../hrdir')
+        makedirs('../hrdir')
     except:
         pass
-    chdir('../../hrdir')
+    chdir('../hrdir')
 
     git.init()
 
-    for (idGroups, challenges, submissions) in models:
-        for chal in challenges:
+    for (idGroups, challenges, submissions) in modelGen:
+        for c_id in challenges:
+            chal = challenges[c_id]
             git.branch('hr-' + chal['slug'])
             makedirs(chal['slug'])
             chdir(chal['slug'])
@@ -131,7 +133,7 @@ def main():
     s = Session()
     csrf = getCsrfToken(s)
     login(s, args.username, args.password, csrf)
-    models = getModelGenerator(s)
+    models = getModelGenerator(s, 10)
     doGitStuff(models)
     logout(s, csrf)
 
