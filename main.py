@@ -12,13 +12,10 @@
  https://www.hackerrank.com/rest/contests/master/challenges/{slug}/submissions/?offset=0&limit=10
 """
 
-import re
-import json
 import argparse
-import pickle
 import os.path
-import itertools
-import functools
+from itertools import chain
+from functools import reduce
 from sh import git
 from os import makedirs, chdir
 from requests import Request, Session
@@ -48,36 +45,19 @@ def login(s, username, password, csrfToken):
     csrfHeader = {'X-CSRF-TOKEN': csrfToken}
     return s.post('https://www.hackerrank.com/auth/login', data=data, headers=csrfHeader)
 
-def logout(s, csrfToken):
-    return s.delete('https://www.hackerrank.com/auth/logout', headers=csrfToken)
-
 def getModelGenerator(s, batchSize = -1):
-    r = s.get('https://www.hackerrank.com/rest/contests/master/submissions?limit=0')
-    print(r.text)
+    r = s.get('https://www.hackerrank.com/rest/contests/master/submissions/grouped?limit=0')
     total = r.json()['total']
     if batchSize <= 0:
         batchSize = total
 
     offset = 0
     while offset < total:
-        idGroups = getSubmissionsByChallengeGrouped(s, offset, 3) #batchSize)
-
+        idGroups = getSubmissionsByChallengeGrouped(s, offset, batchSize)
         offset += batchSize
         challenges = getChallenges(s, idGroups.keys())
-        submissions = getSubmissions(s, functools.reduce(itertools.chain, idGroups.values(), []))
-
+        submissions = getSubmissions(s, reduce(chain, idGroups.values(), []))
         yield (idGroups, challenges, submissions)
-
-def getSubmissionsByChallenge(s, offset, limit):
-    params = {'offset':offset, 'limit':limit}
-    r = s.get('https://www.hackerrank.com/rest/contest/maser/submissions', params=params)
-    submissions = {}
-    for sub in r.json()['models']:
-        c_id = sub['challenge_id']
-        if not submissions[c_id]:
-            submissions[c_id] = []
-        submissions[c_id] += sub['id']
-    return submissions
 
 def getSubmissionsByChallengeGrouped(s, offset, limit):
     params = {'offset':offset, 'limit':limit}
@@ -90,19 +70,16 @@ def getSubmissionsByChallengeGrouped(s, offset, limit):
 
 def getChallenges(s, challengeIds):
     challenges = {}
-    for id in challengeIds:
-        r = s.get('https://www.hackerrank.com/rest/contests/master/challenges/' + str(id))
-        j = r.json()
-        challenges[id] = r.json()['model']
+    for c_id in challengeIds:
+        r = s.get('https://www.hackerrank.com/rest/contests/master/challenges/' + str(c_id))
+        challenges[c_id] = r.json()['model']
     return challenges
 
 def getSubmissions(s, submissionIds):
     submissions = {}
-    for id in submissionIds:
-        r = s.get('https://www.hackerrank.com/rest/contests/master/submissions/' + str(id))
-        if not submissions[id]:
-            submissions[id] = []
-        submissions[id] += r.json()['model']
+    for s_id in submissionIds:
+        r = s.get('https://www.hackerrank.com/rest/contests/master/submissions/' + str(s_id))
+        submissions[s_id] = r.json()['model']
     return submissions
 
 def initFolder(ids, challenges, submissions):
@@ -110,22 +87,7 @@ def initFolder(ids, challenges, submissions):
         chal = challenges[c_id]
         makedirs(chal['slug'])
 
-def main():
-    # get args and validate
-    parser = getArgParser()
-    args = parser.parse_args()
-    if not args.username or not args.password:
-        parser.print_help()
-        exit(123)
-
-    submissions = None
-
-    # do site interaction
-    s = Session()
-    csrf = getCsrfToken(s)
-    login(s, args.username, args.password, csrf)
-    models = getModelGenerator(s)
-
+def doGitStuff(modelGen):
     try:
         makedirs('../../hrdir')
     except:
@@ -135,16 +97,42 @@ def main():
     git.init()
 
     for (idGroups, challenges, submissions) in models:
-        submissions.sort(key=lambda sub: sub['inserttime'])
-        for sub in submissions:
-            if not os.path.isdir(challenge[sub['challenge_id')
         for chal in challenges:
+            git.branch('hr-' + chal['slug'])
             makedirs(chal['slug'])
             chdir(chal['slug'])
+            writeChallengeFile()
+
             idGroups[chal['id']].sort()
             for s_id in idGroups[chal['id']]:
+                sub = sub[s_id]
+                git.add('.')
+                git.commit(sub['name'] + ' (' + sub['laanguage'] + ') - ' + getFrac(sub['testcases'])
+                    + ' ' + sub['status'])
 
+def writeChallengeFile():
+    pass
 
+def getFrac(testcases):
+    pass
+
+def logout(s, csrfToken):
+    return s.delete('https://www.hackerrank.com/auth/logout', headers=csrfToken)
+
+def main():
+    # get args and validate
+    parser = getArgParser()
+    args = parser.parse_args()
+    if not args.username or not args.password:
+        parser.print_help()
+        exit(123)
+
+    # do site interaction
+    s = Session()
+    csrf = getCsrfToken(s)
+    login(s, args.username, args.password, csrf)
+    models = getModelGenerator(s)
+    doGitStuff(models)
     logout(s, csrf)
 
 main()
