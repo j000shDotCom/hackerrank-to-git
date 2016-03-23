@@ -87,8 +87,19 @@ def getSubmissions(s, submissionIds):
         submissions[s_id] = r.json()['model']
     return submissions
 
-def doGitStuff(modelGen):
+def initDir(challenge, submissions):
+    git('checkout', 'b', challenge['slug'])
+    makedirs(challenge['slug'])
+    chdir(challenge['slug'])
+    with open('challenge.html', 'w') as f:
+        f.write('<!DOCTYPE html>\n<html>')
+        for line in challenge['body_html']:
+            f.write(line)
+        f.write('</html>')
+    git('add', 'challenge.html')
+    git('commit', m='added challenge html file')
 
+def doGitStuff(modelGen):
     try:
         makedirs('../hrdir')
     except:
@@ -99,11 +110,8 @@ def doGitStuff(modelGen):
 
     for (idGroups, challenges, submissions) in modelGen:
         for c_id in challenges:
-            chal = challenges[c_id]
-            git.branch('hr-' + chal['slug'])
-            makedirs(chal['slug'])
-            chdir(chal['slug'])
-            writeChallengeFile()
+            subs = [submissions[s_id] for s_id in idGroups[c_id]]
+            initDir(challenges[c_id], subs)
 
             idGroups[chal['id']].sort()
             for s_id in idGroups[chal['id']]:
@@ -133,7 +141,7 @@ def main():
     s = Session()
     csrf = getCsrfToken(s)
     login(s, args.username, args.password, csrf)
-    models = getModelGenerator(s, 10)
+    models = getModelGenerator(s, 5)
     doGitStuff(models)
     logout(s, csrf)
 
