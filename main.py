@@ -87,7 +87,7 @@ def getSubmissions(s, submissionIds):
         submissions[s_id] = r.json()['model']
     return submissions
 
-def initDir(challenge, submissions):
+def initDir(challenge):
     print('initializing dir ' + challenge['slug'])
     git('checkout', b=challenge['slug'])
     makedirs(challenge['slug'])
@@ -99,7 +99,28 @@ def initDir(challenge, submissions):
         f.write(challenge['body_html'])
         f.write('\n</body></html>\n')
     git('add', 'challenge.html')
-    git('commit', m='added challenge html file')
+    git('commit', m='added ' + challenge['name'] + ' challenge html file')
+
+def initSubmissions(submissions):
+    for s_id in submissions:
+        sub = submissions[s_id]
+        with open(sub['challengeslug'] + getFileExtension(sub), 'w') as f:
+            f.write(sub['code'])
+        git.add('.')
+        git.commit(sub['name'] + ' (' + sub['laanguage'] + ') - ' + getFrac(sub['testcases'])
+            + ' ' + sub['status'])
+
+def getFileExtension(submission):
+    if submission['kind'] != 'code':
+        return '.txt'
+    lang = submission['language']
+    if lang == 'java' or lang == 'java8':
+        return '.java'
+    if lang == 'haskell':
+        return '.hs'
+    if lang == 'prolog' or lang == 'perl':
+        return '.pl'
+    return '.txt'
 
 def doGitStuff(modelGen):
     try:
@@ -113,18 +134,11 @@ def doGitStuff(modelGen):
     for (idGroups, challenges, submissions) in modelGen:
         for c_id in challenges:
             subs = sorted([submissions[s_id] for s_id in idGroups[c_id]])
-            initDir(challenges[c_id], subs)
-            doChallenge(subs)
-
-            idGroups[challenge['id']].sort()
-            for s_id in idGroups[chal['id']]:
-                sub = sub[s_id]
-                git.add('.')
-                git.commit(sub['name'] + ' (' + sub['laanguage'] + ') - ' + getFrac(sub['testcases'])
-                    + ' ' + sub['status'])
+            initDir(challenges[c_id])
+            initSubmissions(subs)
 
 def getFrac(testcases):
-    pass
+    return '[{}/{}]'.format(sum(testcases), len(testcases))
 
 def logout(s, csrfToken):
     return s.delete('https://www.hackerrank.com/auth/logout', headers=csrfToken)
