@@ -88,14 +88,16 @@ def getSubmissions(s, submissionIds):
     return submissions
 
 def initDir(challenge, submissions):
-    git('checkout', 'b', challenge['slug'])
+    print('initializing dir ' + challenge['slug'])
+    git('checkout', b=challenge['slug'])
     makedirs(challenge['slug'])
     chdir(challenge['slug'])
     with open('challenge.html', 'w') as f:
-        f.write('<!DOCTYPE html>\n<html>')
-        for line in challenge['body_html']:
-            f.write(line)
-        f.write('</html>')
+        f.write('<!DOCTYPE html><html><head><script type="text/javascript" async ' \
+            + 'src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_CHTML">' \
+            + '</script></head><body>\n')
+        f.write(challenge['body_html'])
+        f.write('\n</body></html>\n')
     git('add', 'challenge.html')
     git('commit', m='added challenge html file')
 
@@ -110,18 +112,16 @@ def doGitStuff(modelGen):
 
     for (idGroups, challenges, submissions) in modelGen:
         for c_id in challenges:
-            subs = [submissions[s_id] for s_id in idGroups[c_id]]
+            subs = sorted([submissions[s_id] for s_id in idGroups[c_id]])
             initDir(challenges[c_id], subs)
+            doChallenge(subs)
 
-            idGroups[chal['id']].sort()
+            idGroups[challenge['id']].sort()
             for s_id in idGroups[chal['id']]:
                 sub = sub[s_id]
                 git.add('.')
                 git.commit(sub['name'] + ' (' + sub['laanguage'] + ') - ' + getFrac(sub['testcases'])
                     + ' ' + sub['status'])
-
-def writeChallengeFile():
-    pass
 
 def getFrac(testcases):
     pass
