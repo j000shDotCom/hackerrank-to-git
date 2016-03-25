@@ -90,16 +90,14 @@ def getSubmissions(s, submissionIds):
 def initDir(challenge):
     print('initializing dir ' + challenge['slug'])
     git('checkout', b=challenge['slug'])
-    makedirs(challenge['slug'])
-    chdir(challenge['slug'])
     with open('challenge.html', 'w') as f:
         f.write('<!DOCTYPE html><html><head><script type="text/javascript" async ' \
             + 'src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_CHTML">' \
             + '</script></head><body>\n')
         f.write(challenge['body_html'])
         f.write('\n</body></html>\n')
-    git('add', 'challenge.html')
-    git('commit', m='added ' + challenge['name'] + ' challenge html file')
+    git.add('challenge.html')
+    git.commit(m='added ' + challenge['name'] + ' challenge html file')
 
 def initSubmissions(submissions):
     print('inserting submission ' + submissions[0]['challenge_slug'])
@@ -107,8 +105,9 @@ def initSubmissions(submissions):
         filename = sub['challenge_slug'] + getFileExtension(sub)
         with open(filename, 'w') as f:
             f.write(sub['code'])
-        git.add('')
-        commitstr = sub['name'] + ' (' + sub['language'] + ') - ' + getFrac(sub['testcase_status']) \
+        git.add(filename)
+        # TODO reformat "{} ({}) {}".format()
+        commitstr = sub['name'] + ' (' + sub['language'] + ') ' + getFrac(sub['testcase_status']) \
             + ' ' + sub['status']
         git.commit(m=commitstr)
 
@@ -135,8 +134,11 @@ def doGitStuff(modelGen):
 
     for (idGroups, challenges, submissions) in modelGen:
         for c_id in challenges:
+            challenge = challenges[c_id]
+            makedirs(challenge['slug'])
+            chdir(challenge['slug'])
             subs = [submissions[s_id] for s_id in idGroups[c_id]]
-            initDir(challenges[c_id])
+            initDir(challenge)
             initSubmissions(subs)
 
 def getFrac(testcases):
