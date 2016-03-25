@@ -67,8 +67,8 @@ def getSubmissionsByChallengeGrouped(s, offset, limit):
     r = s.get('https://www.hackerrank.com/rest/contests/master/submissions/grouped', params=params)
     submissions = {}
     for subs in [m['submissions'] for m in r.json()["models"]]:
-        id = subs[0]["challenge_id"]
-        submissions[id] = [s['id'] for s in subs]
+        c_id = subs[0]["challenge_id"]
+        submissions[c_id] = [s['id'] for s in subs]
     return submissions
 
 def getChallenges(s, challengeIds):
@@ -102,13 +102,15 @@ def initDir(challenge):
     git('commit', m='added ' + challenge['name'] + ' challenge html file')
 
 def initSubmissions(submissions):
-    for s_id in submissions:
-        sub = submissions[s_id]
-        with open(sub['challengeslug'] + getFileExtension(sub), 'w') as f:
+    print('inserting submission ' + submissions[0]['challenge_slug'])
+    for sub in submissions:
+        filename = sub['challenge_slug'] + getFileExtension(sub)
+        with open(filename, 'w') as f:
             f.write(sub['code'])
-        git.add('.')
-        git.commit(sub['name'] + ' (' + sub['laanguage'] + ') - ' + getFrac(sub['testcases'])
-            + ' ' + sub['status'])
+        git.add('')
+        commitstr = sub['name'] + ' (' + sub['language'] + ') - ' + getFrac(sub['testcase_status']) \
+            + ' ' + sub['status']
+        git.commit(m=commitstr)
 
 def getFileExtension(submission):
     if submission['kind'] != 'code':
@@ -133,7 +135,7 @@ def doGitStuff(modelGen):
 
     for (idGroups, challenges, submissions) in modelGen:
         for c_id in challenges:
-            subs = sorted([submissions[s_id] for s_id in idGroups[c_id]])
+            subs = [submissions[s_id] for s_id in idGroups[c_id]]
             initDir(challenges[c_id])
             initSubmissions(subs)
 
