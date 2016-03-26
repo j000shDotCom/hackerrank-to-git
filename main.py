@@ -87,29 +87,28 @@ def getSubmissions(s, submissionIds):
         submissions[s_id] = r.json()['model']
     return submissions
 
-def initDir(challenge):
-    print('initializing dir ' + challenge['slug'])
-    git('checkout', b=challenge['slug'])
-    with open('challenge.html', 'w') as f:
+def writeChallenge(challenge):
+    filename = challenge['slug'] + '.html'
+    print('generating ' + filename)
+    with open(filename, 'w') as f:
         f.write('<!DOCTYPE html><html><head><script type="text/javascript" async ' \
             + 'src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_CHTML">' \
             + '</script></head><body>\n')
         f.write(challenge['body_html'])
         f.write('\n</body></html>\n')
-    git.add('challenge.html')
-    git.commit(m='added ' + challenge['name'] + ' challenge html file')
+    git.add(filename)
+    git.commit(m='added challenge ' + filename)
 
-def initSubmissions(submissions):
+def writeSubmissions(submissions):
     print('inserting submission ' + submissions[0]['challenge_slug'])
     for sub in submissions:
         filename = sub['challenge_slug'] + getFileExtension(sub)
         with open(filename, 'w') as f:
             f.write(sub['code'])
         git.add(filename)
-        # TODO reformat "{} ({}) {}".format()
-        commitstr = sub['name'] + ' (' + sub['language'] + ') ' + getFrac(sub['testcase_status']) \
-            + ' ' + sub['status']
-        git.commit(m=commitstr)
+        git.commit(m="{} ({}) {} {}".format(
+            sub['name'], sub['language'], getFrac(sub['testcase_status']), sub['status']),
+            _ok_code=[0,1])
 
 def getFileExtension(submission):
     if submission['kind'] != 'code':
@@ -131,15 +130,19 @@ def doGitStuff(modelGen):
     chdir('../hrdir')
 
     git.init()
+    with open('README', 'w') as f:
+        f.write('dummy README file\n')
+    git.add('README')
+    git.commit(m='initial commit')
 
     for (idGroups, challenges, submissions) in modelGen:
         for c_id in challenges:
             challenge = challenges[c_id]
-            makedirs(challenge['slug'])
-            chdir(challenge['slug'])
             subs = [submissions[s_id] for s_id in idGroups[c_id]]
-            initDir(challenge)
-            initSubmissions(subs)
+            git.checkout(b=challenge['slug'])
+            writeChallenge(challenge)
+            writeSubmissions(subs)
+            git.checkout('master')
 
 def getFrac(testcases):
     return '[{}/{}]'.format(sum(testcases), len(testcases))
