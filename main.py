@@ -15,6 +15,7 @@
 import re
 import argparse
 import os.path
+import pickle
 from itertools import chain
 from functools import reduce
 from sh import git
@@ -59,7 +60,7 @@ def getModelGenerator(s, batchSize = -1):
         offset += batchSize
         challenges = getChallenges(s, idGroups.keys())
         submissions = getSubmissions(s, reduce(chain, idGroups.values(), []))
-        yield (idGroups, challenges, submissions)
+        yield {'id_groups':idGroups, 'challenges':challenges, 'submissions':submissions}
 
 def getSubmissionsByChallengeGrouped(s, offset, limit):
     params = {'offset':offset, 'limit':limit}
@@ -68,7 +69,7 @@ def getSubmissionsByChallengeGrouped(s, offset, limit):
     submissions = {}
     for subs in [m['submissions'] for m in r.json()["models"]]:
         c_id = subs[0]["challenge_id"]
-        submissions[c_id] = [s['id'] for s in subs]
+        submissions[c_id] = [s['id'] for s in subs].sort(lambda s: s[''])
     return submissions
 
 def getChallenges(s, challengeIds):
@@ -135,7 +136,10 @@ def doGitStuff(modelGen):
     git.add('README')
     git.commit(m='initial commit')
 
-    for (idGroups, challenges, submissions) in modelGen:
+    for model_obj in modelGen:
+        idGroups = model_obj['id_groups']
+        challenges = model_obj['challenges']
+        submissions = model_obj['submissions']
         for c_id in challenges:
             challenge = challenges[c_id]
             subs = [submissions[s_id] for s_id in idGroups[c_id]]
@@ -162,7 +166,17 @@ def main():
     s = Session()
     csrf = getCsrfToken(s)
     login(s, args.username, args.password, csrf)
-    models = getModelGenerator(s, 5)
+
+    models = None
+    if args.pickle and os.exists(args.pickle):
+        models = pickle.load(open(args.pickle), 'rb')
+    else if args.pickle:
+        ids = {}
+        challenges = {}
+        submissions = {}
+        for (id) in getModelGenerator(s, 5)
+            f
+        models = {i.items for i in getModelGenerator(s, 5)}
     doGitStuff(models)
     logout(s, csrf)
 
