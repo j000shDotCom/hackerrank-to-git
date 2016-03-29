@@ -52,21 +52,21 @@ def getModelGenerator(s, batchSize = -1):
 
     offset = 0
     while offset < total:
-        idGroups = getSubmissionsByChallengeGrouped(s, offset, batchSize)
+        ids = getSubmissionsByChallengeGrouped(s, offset, batchSize)
         offset += batchSize
-        challenges = getChallenges(s, idGroups.keys())
-        submissions = getSubmissions(s, reduce(chain, idGroups.values(), []))
-        yield {'id_groups':idGroups, 'challenges':challenges, 'submissions':submissions}
+        challenges = getChallenges(s, ids.keys())
+        submissions = getSubmissions(s, reduce(chain, ids.values(), []))
+        yield {'ids':ids, 'challenges':challenges, 'submissions':submissions}
 
 def getSubmissionsByChallengeGrouped(s, offset, limit):
     params = {'offset':offset, 'limit':limit}
     print('getting submission batch ', params)
     r = s.get('https://www.hackerrank.com/rest/contests/master/submissions/grouped', params=params)
-    submissions = {}
+    ids = {}
     for subs in [m['submissions'] for m in r.json()["models"]]:
         c_id = subs[0]["challenge_id"]
-        submissions[c_id] = [s['id'] for s in subs].sort(lambda s: int(s['created_at_epoch']))
-    return submissions
+        ids[c_id] = [s['id'] for s in subs]
+    return ids
 
 def getChallenges(s, challengeIds):
     print('requesting challenges ', challengeIds)
@@ -129,18 +129,6 @@ def initializeDir(path):
     git.add('README')
     git.commit(m='initial commit')
 
-def archiveModel(model_obj):
-    idGroups = model_obj['id_groups']
-    challenges = model_obj['challenges']
-    submissions = model_obj['submissions']
-    for c_id in challenges:
-        challenge = challenges[c_id]
-        subs = [submissions[s_id] for s_id in idGroups[c_id]]
-        git.checkout(b=challenge['slug'])
-        writeChallenge(challenge)
-        writeSubmissions(subs)
-        git.checkout('master')
-
 def getFrac(testcases):
     return '[{}/{}]'.format(sum(testcases), len(testcases))
 
@@ -154,11 +142,23 @@ def getModelsFromHackerRank(s, username, password):
     challenges = {}
     submissions = {}
     for model in getModelGenerator(s, 5):
-        ids.update(model['id_groups'])
+        ids.update(model['ids'])
         challenges.update(model['challenges'])
         submissions.update(model['submissions'])
     logout(s, csrf)
     return {'id_groups':ids, 'challenges':challenges, 'submissions':submissions}
+
+def archiveModel(model):
+    ids = model['ids']
+    challenges = model['challenges']
+    submissions = model['submissions']
+    for c_id in challenges:
+        challenge = challenges[c_id]
+        subs = [submissions[s_id] for s_id in ids[c_id]]
+        git.checkout(b=challenge['slug'])
+        writeChallenge(challenge)
+        writeSubmissions(subs)
+        git.checkout('master')
 
 def main():
     # get args and validate
