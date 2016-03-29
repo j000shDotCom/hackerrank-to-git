@@ -24,7 +24,7 @@ def getArgParser():
     parser = argparse.ArgumentParser(description='Free your HackerRank.com code!')
     parser.add_argument('-u', '--username', action='store', metavar='username', help='account username')
     parser.add_argument('-p', '--password', action='store', metavar='password', help='account password')
-    parser.add_argument('-f', '--file', action='store', metavar='pickle', help='create/use pickle file')
+    parser.add_argument('-f', '--file', action='store', metavar='file', help='create/use pickle file')
     parser.add_argument('-d', '--dir', action='store', metavar='dir', help='path repository path')
     return parser;
 
@@ -147,6 +147,19 @@ def getFrac(testcases):
 def logout(s, csrfToken):
     return s.delete('https://www.hackerrank.com/auth/logout', headers=csrfToken)
 
+def getModelsFromHackerRank(s, username, password):
+    csrf = getCsrfToken(s)
+    login(s, username, password, csrf)
+    ids = {}
+    challenges = {}
+    submissions = {}
+    for model in getModelGenerator(s, 5):
+        ids.update(model['id_groups'])
+        challenges.update(model['challenges'])
+        submissions.update(model['submissions'])
+    logout(s, csrf)
+    return {'id_groups':ids, 'challenges':challenges, 'submissions':submissions}
+
 def main():
     # get args and validate
     parser = getArgParser()
@@ -155,33 +168,16 @@ def main():
         parser.print_help()
         exit(123)
 
-    # do site interaction
-    s = Session()
-    csrf = getCsrfToken(s)
-    login(s, args.username, args.password, csrf)
-
     models = None
-    if args.pickle and os.exists(args.pickle):
-        models = pickle.load(open(args.pickle), 'rb')
+    if args.file and os.path.exists(args.file):
+        models = pickle.load(open(args.file), 'rb')
     else:
-        models = getModelGenerator(s, 5)
-        ids = {}
-        challenges = {}
-        submissions = {}
-        for model in getModelGenerator(s, 5)
-            doGitStuff(args.path, model)
-            ids.update(model['id_groups'])
-            challenges.update(model['challenges'])
-            submissions.update(model['submissions'])
-        models = {'id_groups':ids, 'challenges':challenges, 'submissions':submissions}
+        models = getModelsFromHackerRank(Session(), args.username, args.password)
 
-    if args.pickle and not os.exists(args.pickle):
-        pickle.dump(models, open(args.pickle), 'wb')
-    logout(s, csrf)
-
+    if args.file and not os.path.exists(args.file):
+        pickle.dump(models, open(args.file), 'wb')
 
     initializeDir(args.path)
-
     for model in models:
         archiveModel(model)
 
