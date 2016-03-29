@@ -69,7 +69,7 @@ def getSubmissionsByChallengeGrouped(s, offset, limit):
     submissions = {}
     for subs in [m['submissions'] for m in r.json()["models"]]:
         c_id = subs[0]["challenge_id"]
-        submissions[c_id] = [s['id'] for s in subs].sort(lambda s: s[''])
+        submissions[c_id] = [s['id'] for s in subs].sort(lambda s: int(s['created_at_epoch']))
     return submissions
 
 def getChallenges(s, challengeIds):
@@ -174,9 +174,12 @@ def main():
         ids = {}
         challenges = {}
         submissions = {}
-        for (id) in getModelGenerator(s, 5)
-            f
-        models = {i.items for i in getModelGenerator(s, 5)}
+        for model in getModelGenerator(s, 5)
+            ids.update(model['id_groups'])
+            challenges.update(model['challenges'])
+            submissions.update(model['submissions'])
+        models = {'id_groups':ids, 'challenges':challenges, 'submissions':submissions}
+        pickle.dump(models, open(args.pickle), 'wb')
     doGitStuff(models)
     logout(s, csrf)
 
