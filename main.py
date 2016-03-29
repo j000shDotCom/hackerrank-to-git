@@ -34,13 +34,12 @@ def getCsrfToken(s):
         if ('csrf-token' in line):
             return re.sub(r"<meta content=\"([^\"]+)\".*", r"\1", line)
 
-def login(s, username, password, csrfToken):
+def login(s, username, password, csrfHeader):
     data = {
         'login' : username,
         'password' : password,
         'remember_me' : 'false',
     }
-    csrfHeader = {'X-CSRF-TOKEN': csrfToken}
     print('logging in. ', csrfHeader)
     return s.post('https://www.hackerrank.com/auth/login', data=data, headers=csrfHeader)
 
@@ -132,12 +131,12 @@ def initializeDir(path):
 def getFrac(testcases):
     return '[{}/{}]'.format(sum(testcases), len(testcases))
 
-def logout(s, csrfToken):
-    return s.delete('https://www.hackerrank.com/auth/logout', headers=csrfToken)
+def logout(s, csrfHeader):
+    return s.delete('https://www.hackerrank.com/auth/logout', headers=csrfHeader)
 
 def getModelsFromHackerRank(s, username, password):
-    csrf = getCsrfToken(s)
-    login(s, username, password, csrf)
+    csrfHeader = {'X-CSRF-TOKEN': getCsrfToken(s)}
+    login(s, username, password, csrfHeader)
     ids = {}
     challenges = {}
     submissions = {}
@@ -145,7 +144,7 @@ def getModelsFromHackerRank(s, username, password):
         ids.update(model['ids'])
         challenges.update(model['challenges'])
         submissions.update(model['submissions'])
-    logout(s, csrf)
+    logout(s, csrfHeader)
     return {'id_groups':ids, 'challenges':challenges, 'submissions':submissions}
 
 def archiveModel(model):
@@ -170,15 +169,15 @@ def main():
 
     models = None
     if args.file and os.path.exists(args.file):
-        models = pickle.load(open(args.file), 'rb')
+        models = pickle.load(open(args.file, 'rb'))
     else:
         models = getModelsFromHackerRank(Session(), args.username, args.password)
 
     if args.file and not os.path.exists(args.file):
-        pickle.dump(models, open(args.file), 'wb')
+        pickle.dump(models, open(args.file, 'wb'))
 
-    initializeDir(args.path)
-    for model in models:
-        archiveModel(model)
+    #initializeDir(args.path)
+    #for model in models:
+    #    archiveModel(model)
 
 main()
