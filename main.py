@@ -11,25 +11,21 @@
  https://www.hackerrank.com/rest/contests/master/submissions/{submissionId}
  https://www.hackerrank.com/rest/contests/master/challenges/{slug}/submissions/?offset=0&limit=10
 """
-
-import re
 import argparse
-import os.path
+import os
 import pickle
-from itertools import chain
+import re
 from functools import reduce
-from sh import git
-from os import makedirs, chdir
+from itertools import chain
 from requests import Request, Session
+from sh import git
 
 def getArgParser():
     parser = argparse.ArgumentParser(description='Free your HackerRank.com code!')
-    parser.add_argument('-l', '--local', action='store', type=bool, metavar='local', help='local git repo')
-    parser.add_argument('-r', '--remote', action='store', type=str, metavar='remote', help='remote git repo URL')
-    parser.add_argument('-f', '--file', action='store', type=bool, metavar='file', help='parse HAR file')
-    parser.add_argument('-d', '--daemon', action='store_true', default=False, help='run in background')
     parser.add_argument('-u', '--username', action='store', metavar='username', help='account username')
     parser.add_argument('-p', '--password', action='store', metavar='password', help='account password')
+    parser.add_argument('-f', '--file', action='store', metavar='pickle', help='create/use pickle file')
+    parser.add_argument('-d', '--dir', action='store', metavar='dir', help='path repository path')
     return parser;
 
 def getCsrfToken(s):
@@ -123,30 +119,27 @@ def getFileExtension(submission):
         return '.pl'
     return '.txt'
 
-def doGitStuff(modelGen):
-    try:
-        makedirs('../hrdir')
-    except:
-        pass
-    chdir('../hrdir')
-
+def initializeDir(path):
+    if not os.exists(path):
+        makedirs(path)
+    chdir(path)
     git.init()
     with open('README', 'w') as f:
-        f.write('dummy README file\n')
+        f.write('dummy README file to make a commit\n') #TODO
     git.add('README')
     git.commit(m='initial commit')
 
-    for model_obj in modelGen:
-        idGroups = model_obj['id_groups']
-        challenges = model_obj['challenges']
-        submissions = model_obj['submissions']
-        for c_id in challenges:
-            challenge = challenges[c_id]
-            subs = [submissions[s_id] for s_id in idGroups[c_id]]
-            git.checkout(b=challenge['slug'])
-            writeChallenge(challenge)
-            writeSubmissions(subs)
-            git.checkout('master')
+def archiveModel(model_obj):
+    idGroups = model_obj['id_groups']
+    challenges = model_obj['challenges']
+    submissions = model_obj['submissions']
+    for c_id in challenges:
+        challenge = challenges[c_id]
+        subs = [submissions[s_id] for s_id in idGroups[c_id]]
+        git.checkout(b=challenge['slug'])
+        writeChallenge(challenge)
+        writeSubmissions(subs)
+        git.checkout('master')
 
 def getFrac(testcases):
     return '[{}/{}]'.format(sum(testcases), len(testcases))
@@ -170,17 +163,26 @@ def main():
     models = None
     if args.pickle and os.exists(args.pickle):
         models = pickle.load(open(args.pickle), 'rb')
-    else if args.pickle:
+    else:
+        models = getModelGenerator(s, 5)
         ids = {}
         challenges = {}
         submissions = {}
         for model in getModelGenerator(s, 5)
+            doGitStuff(args.path, model)
             ids.update(model['id_groups'])
             challenges.update(model['challenges'])
             submissions.update(model['submissions'])
         models = {'id_groups':ids, 'challenges':challenges, 'submissions':submissions}
+
+    if args.pickle and not os.exists(args.pickle):
         pickle.dump(models, open(args.pickle), 'wb')
-    doGitStuff(models)
     logout(s, csrf)
+
+
+    initializeDir(args.path)
+
+    for model in models:
+        archiveModel(model)
 
 main()
