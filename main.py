@@ -7,18 +7,18 @@
  Relevant Links:
  https://www.hackerrank.com/rest/contests/master/submissions/grouped?offset=0limit=2
  https://www.hackerrank.com/rest/hackers/{username}/recent_challenges?offset=0&limit=2
+ https://www.hackerrank.com/rest/contests/master/challenges?limit=132352
  https://www.hackerrank.com/rest/contests/master/challenges/{slug or challengeId}
  https://www.hackerrank.com/rest/contests/master/submissions/{submissionId}
  https://www.hackerrank.com/rest/contests/master/challenges/{slug}/submissions/?offset=0&limit=10
 """
 import argparse
-import os
 import pickle
 import re
-from functools import reduce
+import os.path
 from itertools import chain
-from requests import Request, Session
-from sh import git
+from requests import Session
+from gitops import archiveModel
 
 def getArgParser():
     parser = argparse.ArgumentParser(description='Free your HackerRank.com code!')
@@ -26,6 +26,9 @@ def getArgParser():
     parser.add_argument('-p', '--password', action='store', metavar='password', help='account password')
     parser.add_argument('-f', '--file', action='store', metavar='file', help='create/use pickle file')
     parser.add_argument('-d', '--dir', action='store', metavar='dir', help='path repository path')
+    parser.add_argument('-b', '--batch', action='store', metavar='batch', type=int, help='challenge request batch size')
+    #parser.add_argument('-l', '--load', action='store_true', metavar='load', help='load pickle file')
+    #parser.add_argument('-c', '--create', action='store_true', metavar='create', help='create pickle file')
     return parser;
 
 def getCsrfToken(s):
@@ -33,15 +36,6 @@ def getCsrfToken(s):
     for line in r.text.split("\n"):
         if ('csrf-token' in line):
             return re.sub(r"<meta content=\"([^\"]+)\".*", r"\1", line)
-
-def login(s, username, password, csrfHeader):
-    data = {
-        'login' : username,
-        'password' : password,
-        'remember_me' : 'false',
-    }
-    print('logging in. ', csrfHeader)
-    return s.post('https://www.hackerrank.com/auth/login', data=data, headers=csrfHeader)
 
 def getModelGenerator(s, batchSize = -1):
     r = s.get('https://www.hackerrank.com/rest/contests/master/submissions/grouped?limit=0')
@@ -51,15 +45,15 @@ def getModelGenerator(s, batchSize = -1):
 
     offset = 0
     while offset < total:
+        print('fetching batch [{},{}] of {}'.format(offset, offset + batchSize, total))
         ids = getSubmissionsByChallengeGrouped(s, offset, batchSize)
         offset += batchSize
         challenges = getChallenges(s, ids.keys())
-        submissions = getSubmissions(s, reduce(chain, ids.values(), []))
+        submissions = getSubmissions(s, list(chain.from_iterable(ids.values())))
         yield {'ids':ids, 'challenges':challenges, 'submissions':submissions}
 
 def getSubmissionsByChallengeGrouped(s, offset, limit):
     params = {'offset':offset, 'limit':limit}
-    print('getting submission batch ', params)
     r = s.get('https://www.hackerrank.com/rest/contests/master/submissions/grouped', params=params)
     ids = {}
     for subs in [m['submissions'] for m in r.json()["models"]]:
@@ -68,96 +62,38 @@ def getSubmissionsByChallengeGrouped(s, offset, limit):
     return ids
 
 def getChallenges(s, challengeIds):
-    print('requesting challenges ', challengeIds)
     challenges = {}
     for c_id in challengeIds:
+        print('fetching challenge ' + str(c_id))
         r = s.get('https://www.hackerrank.com/rest/contests/master/challenges/' + str(c_id))
         challenges[c_id] = r.json()['model']
     return challenges
 
 def getSubmissions(s, submissionIds):
-    print('requesting submissions ', submissionIds)
     submissions = {}
     for s_id in submissionIds:
+        print('fetching submission ' + str(s_id))
         r = s.get('https://www.hackerrank.com/rest/contests/master/submissions/' + str(s_id))
         submissions[s_id] = r.json()['model']
     return submissions
 
-def writeChallenge(challenge):
-    filename = challenge['slug'] + '.html'
-    print('generating ' + filename)
-    with open(filename, 'w') as f:
-        f.write('<!DOCTYPE html><html><head><script type="text/javascript" async ' \
-            + 'src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_CHTML">' \
-            + '</script></head><body>\n')
-        f.write(challenge['body_html'])
-        f.write('\n</body></html>\n')
-    git.add(filename)
-    git.commit(m='added challenge ' + filename)
-
-def writeSubmissions(submissions):
-    print('inserting submission ' + submissions[0]['challenge_slug'])
-    for sub in submissions:
-        filename = sub['challenge_slug'] + getFileExtension(sub)
-        with open(filename, 'w') as f:
-            f.write(sub['code'])
-        git.add(filename)
-        git.commit(m="{} ({}) {} {}".format(
-            sub['name'], sub['language'], getFrac(sub['testcase_status']), sub['status']),
-            _ok_code=[0,1])
-
-def getFileExtension(submission):
-    if submission['kind'] != 'code':
-        return '.txt'
-    lang = submission['language']
-    if lang == 'java' or lang == 'java8':
-        return '.java'
-    if lang == 'haskell':
-        return '.hs'
-    if lang == 'prolog' or lang == 'perl':
-        return '.pl'
-    return '.txt'
-
-def initializeDir(path):
-    if not os.exists(path):
-        makedirs(path)
-    chdir(path)
-    git.init()
-    with open('README', 'w') as f:
-        f.write('dummy README file to make a commit\n') #TODO
-    git.add('README')
-    git.commit(m='initial commit')
-
-def getFrac(testcases):
-    return '[{}/{}]'.format(sum(testcases), len(testcases))
-
-def logout(s, csrfHeader):
-    return s.delete('https://www.hackerrank.com/auth/logout', headers=csrfHeader)
-
-def getModelsFromHackerRank(s, username, password):
+def getModelsFromHackerRank(s, username, password, batchSize):
+    data = {
+        'login' : username,
+        'password' : password,
+        'remember_me' : 'false',
+    }
     csrfHeader = {'X-CSRF-TOKEN': getCsrfToken(s)}
-    login(s, username, password, csrfHeader)
+    s.post('https://www.hackerrank.com/auth/login', data=data, headers=csrfHeader)
     ids = {}
     challenges = {}
     submissions = {}
-    for model in getModelGenerator(s, 5):
+    for model in getModelGenerator(s, batchSize):
         ids.update(model['ids'])
         challenges.update(model['challenges'])
         submissions.update(model['submissions'])
-    logout(s, csrfHeader)
-    return {'id_groups':ids, 'challenges':challenges, 'submissions':submissions}
-
-def archiveModel(model):
-    ids = model['ids']
-    challenges = model['challenges']
-    submissions = model['submissions']
-    for c_id in challenges:
-        challenge = challenges[c_id]
-        subs = [submissions[s_id] for s_id in ids[c_id]]
-        git.checkout(b=challenge['slug'])
-        writeChallenge(challenge)
-        writeSubmissions(subs)
-        git.checkout('master')
+    s.delete('https://www.hackerrank.com/auth/logout', headers=csrfHeader)
+    return {'ids':ids, 'challenges':challenges, 'submissions':submissions}
 
 def main():
     # get args and validate
@@ -171,13 +107,11 @@ def main():
     if args.file and os.path.exists(args.file):
         models = pickle.load(open(args.file, 'rb'))
     else:
-        models = getModelsFromHackerRank(Session(), args.username, args.password)
+        models = getModelsFromHackerRank(Session(), args.username, args.password, args.batch)
 
     if args.file and not os.path.exists(args.file):
         pickle.dump(models, open(args.file, 'wb'))
 
-    #initializeDir(args.path)
-    #for model in models:
-    #    archiveModel(model)
+    archiveModel(args.dir, models)
 
 main()
