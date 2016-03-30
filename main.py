@@ -45,7 +45,7 @@ def getModelGenerator(s, batchSize = -1):
 
     offset = 0
     while offset < total:
-        print('fetching batch [{},{}] of {}'.format(offset, offset + batchSize, total))
+        print('fetching batch [{}-{}] of {}'.format(offset, offset + batchSize, total))
         ids = getSubmissionsByChallengeGrouped(s, offset, batchSize)
         offset += batchSize
         challenges = getChallenges(s, ids.keys())
@@ -64,16 +64,22 @@ def getSubmissionsByChallengeGrouped(s, offset, limit):
 def getChallenges(s, challengeIds):
     challenges = {}
     for c_id in challengeIds:
-        print('fetching challenge ' + str(c_id))
+        print('  challenge ' + str(c_id))
         r = s.get('https://www.hackerrank.com/rest/contests/master/challenges/' + str(c_id))
+        if not r.text:
+            print('    --RESPONSE IS EMPTY. SKIPPING.')
+            continue
         challenges[c_id] = r.json()['model']
     return challenges
 
 def getSubmissions(s, submissionIds):
     submissions = {}
     for s_id in submissionIds:
-        print('fetching submission ' + str(s_id))
+        print('    submission ' + str(s_id))
         r = s.get('https://www.hackerrank.com/rest/contests/master/submissions/' + str(s_id))
+        if not r.text:
+            print('    --RESPONSE IS EMPTY. SKIPPING.')
+            continue
         submissions[s_id] = r.json()['model']
     return submissions
 
