@@ -47,6 +47,6 @@ def main():
     if args.file and not os.path.exists(args.file):
         dump(model, open(args.file, 'wb'))
 
-    archiveModel(args.dir, models)
+    archiveModel(args.dir, model)
 
 main()
