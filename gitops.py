@@ -13,9 +13,12 @@ def archiveModel(repoPath, model):
         challenge = challenges[c_id]
         subs = [submissions[s_id] for s_id in ids[c_id]]
 
+        print('inserting ' + challenge['slug'])
         git.checkout(b=challenge['slug'])
         writeChallenge(challenge)
-        writeSubmissions(subs)
+        for sub in subs:
+            print('  sub ' + str(sub['id']) + ' ' + sub['status'])
+            writeSubmission(sub)
 
         git.checkout('master')
         git.merge(challenge['slug'])
@@ -35,27 +38,24 @@ def initializeDir(path):
 
 def writeChallenge(challenge):
     filename = challenge['slug'] + '.html'
-    print('generating ' + filename)
     with open(filename, 'w') as f:
         f.write('<!DOCTYPE html><html><head><script type="text/javascript" async '\
             + 'src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_CHTML">'\
-            + "MathJax.Hub.Config({tex2jax:{inlineMath:[['$','$'], ['\\(','\\)']]}});"\
+            + "MathJax.Hub.Config({tex2jax:{inlineMath:[['$','$'],['\\(','\\)']]}});"\
             + '</script></head><body>\n')
         f.write(challenge['body_html'])
         f.write('\n</body></html>\n')
     git.add(filename)
     git.commit(m='added challenge ' + filename)
 
-def writeSubmissions(submissions):
-    print('inserting submission ' + submissions[0]['challenge_slug'])
-    for sub in submissions:
-        filename = sub['challenge_slug'] + getFileExtension(sub)
-        with open(filename, 'w') as f:
-            f.write(sub['code'])
-        git.add(filename)
-        git.commit(m="{} ({}) {} {}".format(
-            sub['name'], sub['language'], getFrac(sub['testcase_status']), sub['status']),
-            _ok_code=[0,1])
+def writeSubmission(sub):
+    filename = sub['challenge_slug'] + getFileExtension(sub)
+    with open(filename, 'w') as f:
+        f.write(sub['code'])
+    git.add(filename)
+    git.commit(m="{} ({}) {} {}".format(
+        sub['name'], sub['language'], getFrac(sub['testcase_status']), sub['status']),
+        _ok_code=[0,1])
 
 def getFileExtension(submission):
     if submission['kind'] != 'code':

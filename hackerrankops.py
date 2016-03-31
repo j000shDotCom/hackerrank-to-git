@@ -45,7 +45,7 @@ def getSubmissionsByChallengeGrouped(s, offset, limit):
     ids = {}
     for subs in [m['submissions'] for m in r.json()["models"]]:
         c_id = subs[0]["challenge_id"]
-        ids[c_id] = sorted([s['id'] for s in subs], reverse=True)
+        ids[c_id] = [s['id'] for s in subs]
     return ids
 
 def getCsrfToken(s):
