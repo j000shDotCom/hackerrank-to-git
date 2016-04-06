@@ -14,39 +14,35 @@
 """
 import os.path
 from argparse import ArgumentParser
-from pickle import load, dump
 from requests import Session
-from gitops import archiveModel
-from hackerrankops import getModelsFromHackerRank
+from gitops import archiveData
+from hackerrankops import getHackerRankData
 
-def getArgParser():
+def getArgs():
     parser = ArgumentParser(description='Free your HackerRank.com code!')
-    parser.add_argument('-u', '--username', action='store', metavar='username', help='account username')
-    parser.add_argument('-p', '--password', action='store', metavar='password', help='account password')
+    parser.add_argument('-u', '--username', action='store', metavar='username', required=True, help='account username')
+    parser.add_argument('-p', '--password', action='store', metavar='password', required=True, help='account password')
     parser.add_argument('-f', '--file', action='store', metavar='file', help='create/use pickle file')
     parser.add_argument('-d', '--dir', action='store', metavar='dir', help='path repository path')
     parser.add_argument('-b', '--batch', action='store', metavar='batch', type=int, help='challenge request batch size')
     #parser.add_argument('-l', '--load', action='store_true', metavar='load', help='load pickle file')
     #parser.add_argument('-c', '--create', action='store_true', metavar='create', help='create pickle file')
-    return parser;
+    return parser.parse_args();
 
 def main():
-    # get args and validate
-    parser = getArgParser()
-    args = parser.parse_args()
-    if not args.username or not args.password:
-        parser.print_help()
-        exit(123)
+    args = getArgs()
 
-    model = None
-    if args.file and os.path.exists(args.file):
-        model = load(open(args.file, 'rb'))
-    else:
-        model = getModelsFromHackerRank(Session(), args.username, args.password, args.batch)
+    #if args.file and os.path.exists(args.file):
+    #    model = load(open(args.file, 'rb'))
+    #else:
 
-    if args.file and not os.path.exists(args.file):
-        dump(model, open(args.file, 'wb'))
+    s = Session()
+    data = getHackerRankData(s, args.username, args.password, args.batch)
 
-    archiveModel(args.dir, model)
+    # cannot pickle generator TODO
+    #if args.file and not os.path.exists(args.file):
+    #    dump(models, open(args.file, 'wb'))
+
+    archiveData(args.dir, data)
 
 main()
