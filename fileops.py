@@ -5,12 +5,9 @@ import os
 from sh import git
 from bs4 import BeautifulSoup
 
-def archiveModel(repoPath, model):
-    initializeDir(repoPath, model['user']['name'], model['user']['email'])
-    for model in model['models']:
-        ids = model['ids']
-        challenges = model['challenges']
-        submissions = model['submissions']
+def archiveData(repoPath, data):
+    initializeDir(repoPath, data['user']['name'], data['user']['email'])
+    for (ids, challenges, submissions) in data['models']:
         for c_id in challenges:
             challenge = challenges[c_id]
             subs = [submissions[s_id] for s_id in sorted(ids[c_id])]
@@ -22,6 +19,7 @@ def archiveModel(repoPath, model):
                 print('  sub ' + str(sub['id']) + ' ' + sub['status'])
                 writeSubmission(sub)
 
+            git.checkout('master')
             git.merge(challenge['slug'])
             git.branch(d=challenge['slug'])
 
