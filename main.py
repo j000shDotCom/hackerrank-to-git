@@ -6,7 +6,6 @@
 """
 import os.path
 from argparse import ArgumentParser
-from requests import Session
 from fileops import archiveData#, loadPickle, dumpPickle
 from hackerrankops import getHackerRankData
 
@@ -23,7 +22,7 @@ def getArgs():
 
 def main():
     args = getArgs()
-    data = getHackerRankData(Session(), args.username, args.password)
-    archiveData(args.dir, data)
+    data = getHackerRankData(args.username, args.password)
+    #archiveData(args.dir, data)
 
 main()
