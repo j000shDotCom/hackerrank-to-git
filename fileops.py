@@ -2,8 +2,15 @@
   This file does all the fancy git operations and file writing
 """
 import os
-from sh import git
+from pickle import load, dump
 from bs4 import BeautifulSoup
+from sh import git
+
+def loadPickle(filename):
+    return load(open(filename, 'rb'))
+
+def dumpPickle(data, filename):
+    dump(data, open(filename, 'wb'))
 
 def archiveData(repoPath, data):
     initializeDir(repoPath, data['user']['name'], data['user']['email'])
