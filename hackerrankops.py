@@ -48,7 +48,7 @@ def getModels(s, csrfHeader):
 
         url = 'https://www.hackerrank.com/rest/contests/' + contestSlug + '/submissions/'
         submissions = getAllModels(s, url)
-        challengeSlugs = {s['challenge']['slug'] for s in submissions} # set comprehension ... COOL! <3 Python
+        challengeSlugs = {s['challenge']['slug'] for s in submissions} # set comprehension
 
         # get challenge models
         contests[contestSlug]['challenges'] = {}
@@ -66,10 +66,10 @@ def getModels(s, csrfHeader):
 
     return contests
 
-def getAllModels(s, url, lst = []):
+def getAllModels(s, url):
     r = s.get(url).json()
     total = r['total']
-    lst += r['models']
+    lst = r['models']
     if len(r['models']) < total:
         lst += s.get(url, params={'offset':len(r['models']), 'limit':total}).json()['models']
     return lst
