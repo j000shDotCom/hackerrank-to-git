@@ -18,12 +18,10 @@ def archiveData(repoPath, data):
         os.makedirs(contestSlug)
         os.chdir(contestSlug)
         writeContest(contest['model'])
-
         for (submissionId, submission) in sorted(contest['submissions'].items()):
             challenge = contest['challenges'][submission['challenge_slug']]
             writeChallenge(challenge)
             writeSubmission(submission)
-
         os.chdir('..')
 
 def initializeDir(path, name, email):
@@ -43,10 +41,17 @@ def writeContest(contest):
     git.add(filename)
 
 def writeChallenge(challenge):
+    url = 'https://www.hackerrank.com' \
+        + ('/contests/' + challenge['contest_slug'] if challenge['contest_slug'] != 'master' else '/') \
+        + '/challenges/' + challenge['slug']
     html = '<!DOCTYPE html><html><head><script type="text/javascript" async ' \
         + 'src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_CHTML">'\
         + "MathJax.Hub.Config({tex2jax:{inlineMath:[['$','$'],['\\(','\\)']]}});"\
-        + '</script></head><body>' + challenge['body_html'] + '</body></html>'
+        + '<meta charset="UTF-8"/>'\
+        + '</script></head><body><h1>' + challenge['name'] + '</h1>' \
+        + 'View challenge on <a href="' + url + '">HackerRank</a><hr/>' \
+        + challenge['body_html'] \
+        + '</body></html>'
     filename = challenge['slug'] + '.html'
     with open(filename, 'w') as f:
         f.write(BeautifulSoup(html, 'html.parser').prettify() + "\n")
