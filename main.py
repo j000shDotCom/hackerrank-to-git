@@ -23,6 +23,6 @@ def main():
     if not data:
         data = getHackerRankData(args.username, args.password)
         dumpPickle(data, args.file)
-    #archiveData(args.dir, data)
+    archiveData(args.dir, data)
 
 main()

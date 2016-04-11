@@ -14,38 +14,33 @@ def dumpPickle(data, filename):
 
 def archiveData(repoPath, data):
     initializeDir(repoPath, data['user']['name'], data['user']['email'])
-    for (ids, challenges, submissions) in data['models']:
-        for c_id in challenges:
-            challenge = challenges[c_id]
-            subs = [submissions[s_id] for s_id in sorted(ids[c_id])]
+    for (contestSlug, contest) in data['models'].items():
+        os.makedirs(contestSlug)
+        os.chdir(contestSlug)
+        writeContest(contest['model'])
 
-            print('inserting ' + challenge['slug'])
-            git.checkout(b=challenge['slug'])
+        for (submissionId, submission) in sorted(contest['submissions'].items()):
+            challenge = contest['challenges'][submission['challenge_slug']]
             writeChallenge(challenge)
-            for sub in subs:
-                print('  sub ' + str(sub['id']) + ' ' + sub['status'])
-                writeSubmission(sub)
+            writeSubmission(submission)
 
-            git.checkout('master')
-            git.merge(challenge['slug'])
-            git.branch(d=challenge['slug'])
+        os.chdir('..')
 
 def initializeDir(path, name, email):
-    if os.path.exists(path):
-        os.chdir(path)
-        return
-
     os.makedirs(path)
     os.chdir(path)
     git.init()
     git.config('--local', 'user.name', '"' + name + '"')
     git.config('--local', 'user.email', '"' + email + '"')
 
-    git.checkout(b='master')
-    with open('README', 'w') as f:
-        f.write('dummy README file to make a commit\n') #TODO
-    git.add('README')
-    git.commit(m='initial commit')
+def writeContest(contest):
+    html = '<!DOCTYPE html><html><head></head><body>' \
+        + contest['description_html'] \
+        + '</body></html>'
+    filename = contest['slug'] + '.html'
+    with open(filename, 'w') as f:
+        f.write(BeautifulSoup(html, 'html.parser').prettify() + '\n')
+    git.add(filename)
 
 def writeChallenge(challenge):
     html = '<!DOCTYPE html><html><head><script type="text/javascript" async ' \
