@@ -27,35 +27,38 @@ def archiveData(repoPath, data):
 def initializeDir(path, name, email):
     os.makedirs(path)
     os.chdir(path)
+    os.chmod(path, 0700)
     git.init()
     git.config('--local', 'user.name', '"' + name + '"')
     git.config('--local', 'user.email', '"' + email + '"')
 
 def writeContest(contest):
-    html = '<!DOCTYPE html><html><head></head><body>' \
+    html = '<!DOCTYPE html><html><head>'\
+        + '</head><body>' \
         + contest['description_html'] \
         + '</body></html>'
     filename = contest['slug'] + '.html'
     with open(filename, 'w') as f:
         f.write(BeautifulSoup(html, 'html.parser').prettify() + '\n')
-    git.add(filename)
+    gitCommitModel(filename, contest, msg)
 
 def writeChallenge(challenge):
     url = 'https://www.hackerrank.com' \
-        + ('/contests/' + challenge['contest_slug'] if challenge['contest_slug'] != 'master' else '/') \
+        + ('/contests/' + challenge['contest_slug'] if challenge['contest_slug'] != 'master' else '') \
         + '/challenges/' + challenge['slug']
-    html = '<!DOCTYPE html><html><head><script type="text/javascript" async ' \
-        + 'src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_CHTML">'\
-        + "MathJax.Hub.Config({tex2jax:{inlineMath:[['$','$'],['\\(','\\)']]}});"\
+    html = '<!DOCTYPE html><html><head>'\
         + '<meta charset="UTF-8"/>'\
-        + '</script></head><body><h1>' + challenge['name'] + '</h1>' \
-        + 'View challenge on <a href="' + url + '">HackerRank</a><hr/>' \
+        + '<script type="text/javascript" async ' \
+        + 'src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_CHTML">'\
+        + "MathJax.Hub.Config({tex2jax:{inlineMath:[['$','$'],['\\(','\\)']]}});</script>\n"\
+        + '</head><body><h1>' + challenge['name'] + '</h1>' \
+        + 'View challenge on <a href="' + url + '" target="_blank">HackerRank</a><hr/>' \
         + challenge['body_html'] \
         + '</body></html>'
     filename = challenge['slug'] + '.html'
     with open(filename, 'w') as f:
         f.write(BeautifulSoup(html, 'html.parser').prettify() + "\n")
-    git.add(filename)
+    gitCommitModel(filename, challenge, msg)
 
 def writeSubmission(sub):
     filename = sub['challenge_slug'] + getFileExtension(sub)
@@ -63,9 +66,12 @@ def writeSubmission(sub):
     envDict = {'GIT_COMMITTER_DATE':sub['created_at'], 'GIT_AUTHOR_DATE':sub['created_at']}
     with open(filename, 'w') as f:
         f.write(sub['code'] + "\n")
+    gitCommitModel(filename, sub, msg)
+
+def gitCommitModel(filename, model, message):
     git.add(filename)
-    git.commit(m=msg, _ok_code=[0,1], date=sub['created_at'], _env=envDict)
-    git.commit('--no-edit', amend=True, _env=envDict)
+    git.commit(m=message, _ok_code=[0,1], date=model['created_at'])
+    git.commit('--no-edit', amend=True, _env=envDict) # enforce date
 
 def getFileExtension(submission):
     lang = submission['language']
