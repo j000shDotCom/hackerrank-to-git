@@ -17,6 +17,11 @@ def getArgs():
     #parser.add_argument('-b', '--batch', action='store', metavar='batch', type=int, help='challenge request batch size')
     return parser.parse_args();
 
+def daemon():
+    args = getArgs()
+    validatePickle(args.file)
+    validateRepo(args.dir)
+
 def main():
     args = getArgs()
     data = loadPickle(args.file)

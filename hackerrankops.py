@@ -23,8 +23,9 @@ def getHackerRankData(username, password):
     }
     csrfHeader = {'X-CSRF-TOKEN': getCsrfToken(s)}
     s.post('https://www.hackerrank.com/auth/login', data=data, headers=csrfHeader)
-    user = s.get("https://www.hackerrank.com/rest/contests/master/hackers/me").json()['model']
-    data = {'models': getModels(s, csrfHeader), 'user': user}
+    user = s.get('https://www.hackerrank.com/rest/contests/master/hackers/me').json()['model']
+    assets = s.get('https://www.hackerrank.com/')
+    data = {'models': getModels(s, csrfHeader), 'user': user, 'assets': assets}
     s.delete('https://www.hackerrank.com/auth/logout', headers=csrfHeader)
     return data
 
@@ -36,14 +37,14 @@ def getCsrfToken(s):
 
 def getModels(s, csrfHeader):
     contests = {}
-    #url = 'https://www.hackerrank.com/rest/hackers/me/myrank_contests?limit=100&type=recent'
-    #contests = getAllModels(s, url2, ['master'])
-    url = 'https://www.hackerrank.com/rest/hackers/me/contest_participation'
-    contestSlugs = ['master'] + [m['slug'] for m in getAllModels(s, url)]
+    url = 'https://www.hackerrank.com/rest/hackers/me/myrank_contests?limit=100&type=recent'
+    contests = getAllModels(s, url, ['master'])
+    #url = 'https://www.hackerrank.com/rest/hackers/me/contest_participation'
+    #contestSlugs = ['master'] + [m['slug'] for m in getAllModels(s, url)]
     for contestSlug in contestSlugs:
         # get contest model
         url = 'https://www.hackerrank.com/rest/contests/' + contestSlug
-        contests[contestSlug] = s.get(url).json() # is {model:{}}
+        contests[contestSlug] = s.get(url).json()['model']
         print(contestSlug)
 
         url = 'https://www.hackerrank.com/rest/contests/' + contestSlug + '/submissions/'
@@ -63,6 +64,7 @@ def getModels(s, csrfHeader):
             url = 'https://www.hackerrank.com/rest/contests/' + contestSlug + '/submissions/' + str(submission['id'])
             contests[contestSlug]['submissions'][submission['id']] = s.get(url).json()['model']
             print(submission['id'])
+        print()
 
     return contests
 
