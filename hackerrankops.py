@@ -15,19 +15,42 @@ import re
 from requests import Session
 
 def getHackerRankData(username, password):
-    s = Session()
+    (s, csrfHeader) = login(username, password)
+    models = getModels(s)
+    user = getUserModel(s)
+    assets = getAssets(s)
+    logout(s, csrfHeader)
+    return {'models': models, 'user': user, 'assets': assets}
+
+def getAllNewSubmissions(username, password, data):
+    models = {}
+    (s, csrfHeader) = login(username, password)
+    for (contestSlug, contestData) in data['models'].items():
+        newSubmissions = getNewSubmissions(s, contestSlug, data['models'][contestSlug]['submissions'])
+        contestData['newSubmissions'] = newSubmissions
+    logout(s, csrfHeader)
+    return data
+
+def getNewSubmissions(s, contestSlug, contestSubmissions):
+    numSubmissions = getNumModels(s, url)
+    if len(contestData['submissions']) == numSubmissions:
+        return contestData
+    else
+        newSubmissions =
+
+def login(username, password):
     data = {
         'login' : username,
         'password' : password,
         'remember_me' : 'false',
     }
     csrfHeader = {'X-CSRF-TOKEN': getCsrfToken(s)}
+    s = Session()
     s.post('https://www.hackerrank.com/auth/login', data=data, headers=csrfHeader)
-    user = s.get('https://www.hackerrank.com/rest/contests/master/hackers/me').json()['model']
-    assets = s.get('https://www.hackerrank.com/')
-    data = {'models': getModels(s, csrfHeader), 'user': user, 'assets': assets}
+    return (s, csrfHeader)
+
+def logout(s, csrfHeader):
     s.delete('https://www.hackerrank.com/auth/logout', headers=csrfHeader)
-    return data
 
 def getCsrfToken(s):
     r = s.get('https://www.hackerrank.com/')
@@ -35,30 +58,36 @@ def getCsrfToken(s):
         if ('csrf-token' in line):
             return re.sub(r"<meta content=\"([^\"]+)\".*", r"\1", line)
 
-def getModels(s, csrfHeader):
+def getUserModel(s):
+    return s.get('https://www.hackerrank.com/rest/contests/master/hackers/me').json()['model']
+
+def getAssets(s):
+    pass
+
+def getModels(s):
     contests = {}
     url = 'https://www.hackerrank.com/rest/hackers/me/myrank_contests?limit=100&type=recent'
     contests = getAllModels(s, url, ['master'])
     #url = 'https://www.hackerrank.com/rest/hackers/me/contest_participation'
     #contestSlugs = ['master'] + [m['slug'] for m in getAllModels(s, url)]
     for contestSlug in contestSlugs:
-        # get contest model
+        # contest model
         url = 'https://www.hackerrank.com/rest/contests/' + contestSlug
         contests[contestSlug] = s.get(url).json()['model']
         print(contestSlug)
 
         url = 'https://www.hackerrank.com/rest/contests/' + contestSlug + '/submissions/'
         submissions = getAllModels(s, url)
-        challengeSlugs = {s['challenge']['slug'] for s in submissions} # set comprehension
+        challengeSlugs = {s['challenge']['slug'] for s in submissions}
 
-        # get challenge models
+        # challenge models
         contests[contestSlug]['challenges'] = {}
         for challengeSlug in challengeSlugs:
             url = 'https://www.hackerrank.com/rest/contests/' + contestSlug + '/challenges/' + challengeSlug
             contests[contestSlug]['challenges'][challengeSlug] = s.get(url).json()['model']
             print(challengeSlug)
 
-        # get submission models
+        # submission models
         contests[contestSlug]['submissions'] = {}
         for submission in submissions:
             url = 'https://www.hackerrank.com/rest/contests/' + contestSlug + '/submissions/' + str(submission['id'])
@@ -68,11 +97,13 @@ def getModels(s, csrfHeader):
 
     return contests
 
-def getAllModels(s, url):
+def getNumModels(s, url):
     r = s.get(url).json()
-    total = r['total']
-    lst = r['models']
-    if len(r['models']) < total:
-        lst += s.get(url, params={'offset':len(r['models']), 'limit':total}).json()['models']
+    return (r['total'], r['models'])
+
+def getAllModels(s, url):
+    (total, lst) = getNumModels(s, url)
+    if len(lst) < total:
+        lst += s.get(url, params={'offset':len(lst), 'limit':total}).json()['models']
     return lst
 

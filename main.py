@@ -14,13 +14,9 @@ def getArgs():
     parser.add_argument('-p', '--password', action='store', metavar='password', required=True, help='account password')
     parser.add_argument('-f', '--file', action='store', metavar='file', help='create/use pickle file')
     parser.add_argument('-d', '--dir', action='store', metavar='dir', help='path repository path')
+    parser.add_argument('-r', '--repo', action='store', metavar='repo', help='remote git repository')
     #parser.add_argument('-b', '--batch', action='store', metavar='batch', type=int, help='challenge request batch size')
     return parser.parse_args();
-
-def daemon():
-    args = getArgs()
-    validatePickle(args.file)
-    validateRepo(args.dir)
 
 def main():
     args = getArgs()
@@ -28,6 +24,8 @@ def main():
     if not data:
         data = getHackerRankData(args.username, args.password)
         dumpPickle(data, args.file)
+    else:
+        data = getNewData(args.username, args.password, data)
     archiveData(args.dir, data)
 
 main()
