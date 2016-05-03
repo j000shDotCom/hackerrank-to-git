@@ -14,6 +14,13 @@
 import re
 from requests import Session
 
+HR = 'https://www.hackerrank.com'
+HR_REST = HR + '/rest'
+CONTESTS = '/contests'
+CHALLENGES = '/challenges'
+SUBMISSIONS = '/submissions'
+SUBMISSIONS_GROUPED = SUBMISSIONS + '/grouped'
+
 def getHackerRankData(username, password):
     (s, csrfHeader) = login(username, password)
     models = getModels(s)
@@ -32,7 +39,7 @@ def getAllNewSubmissions(username, password, data):
     return data
 
 def getNewContestSubmissions(s, contestSlug, contestData):
-    url = 'https://www.hackerrank.com/rest/contests/' + contestSlug + '/submissions/'
+    url = HR_REST + CONTESTS + contestSlug + SUBMISSIONS
     numSubmissions = contestDate['submissions']
     numSubmissionsNow = getNumModels(s, url)
     if len(contestData['submissions']) != numSubmissionsNow:
@@ -48,46 +55,45 @@ def login(username, password):
     }
     csrfHeader = {'X-CSRF-TOKEN': getCsrfToken(s)}
     s = Session()
-    s.post('https://www.hackerrank.com/auth/login', data=data, headers=csrfHeader)
+    s.post(HR + '/auth/login', data=data, headers=csrfHeader)
     return (s, csrfHeader)
 
 def logout(s, csrfHeader):
-    s.delete('https://www.hackerrank.com/auth/logout', headers=csrfHeader)
+    s.delete(HR + '/auth/logout', headers=csrfHeader)
 
+# TODO get assets and CSRF token in the same request
 def getCsrfToken(s):
-    r = s.get('https://www.hackerrank.com/')
+    r = s.get(HR)
     for line in r.text.split("\n"):
         if ('csrf-token' in line):
             return re.sub(r"<meta content=\"([^\"]+)\".*", r"\1", line)
+    raise Exception('cannot get CSRF token')
 
 def getUserModel(s):
-    return s.get('https://www.hackerrank.com/rest/contests/master/hackers/me').json()['model']
-
-def getAssets(s):
-    pass
+    return s.get(HR_REST + CONTESTS + '/master/hackers/me').json()['model']
 
 def getContests(s):
-    url = 'https://www.hackerrank.com/rest/hackers/me/myrank_contests?limit=100&type=recent'
-    # url = 'https://www.hackerrank.com/rest/hackers/me/contest_participation'
+    url = HR_REST + '/hackers/me/myrank_contests?limit=100&type=recent'
     contests = {c['slug']:dict() for c in ['master'] + getAllModels(s, url)}
-    url = 'https://www.hackerrank.com/rest/contests/' + contest['slug']
+    url = HR_REST + CONTESTS + contest['slug']
     contest['model'] = s.get(url).json()['model']
     return contests
 
 def getSubmissions(s, contestSlug):
-    url = 'https://www.hackerrank.com/rest/contests/' + contestSlug + '/submissions/'
+    url = HR_REST + CONTESTS + contestSlug + SUBMISSIONS
     submissions = {sub['id']:getById(s, contestSlug, sub['id']) for sub in getAllModels(s, url)}
+    return submissions
 
-def getById(s, contestSlug, sId):
-    url = 'https://www.hackerrank.com/rest/contests/' + contestSlug + '/submissions/' + str(submission['id'])
-    return getAllModels(s, url)
+#def getById(s, contestSlug, sId):
+#    url = HR_REST + CONTESTS + contestSlug + SUBMISSIONS + str(submission['id'])
+#    return getAllModels(s, url)
 
 def getModels(s):
     contests = getContests(s)
     for (contestSlug, contest) in contests.items():
 
         # submissions overview
-        url = 'https://www.hackerrank.com/rest/contests/' + contestSlug + '/submissions/'
+        url = HR_REST + CONTESTS + contestSlug + SUBMISSIONS
         submissions = getAllModels(s, url)
         contest['submissions'] = {}
         challengeSlugs = {s['challenge']['slug'] for s in submissions}
@@ -95,7 +101,7 @@ def getModels(s):
         # challenge models
         contests[contestSlug]['challenges'] = {}
         for challengeSlug in challengeSlugs:
-            url = 'https://www.hackerrank.com/rest/contests/' + contestSlug + '/challenges/' + challengeSlug
+            url = HR_REST + CONTESTS + contestSlug + CHALLENGES + challengeSlug
             contests[contestSlug]['challenges'][challengeSlug] = getAllModels(s, url)
             print(challengeSlug + ': ' + len(contests[contestSlug]['challenges'][challengeSlug]) + ' challenge models')
 
