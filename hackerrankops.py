@@ -42,6 +42,8 @@ def getLatestData(username, password, data):
 def getLatestModels(s, models):
     contests = {}
     for slug in getContestSlugs(s):
+        print()
+        print(slug)
         url = HR_REST + CONTESTS + '/' + slug
         contest = {}
         submissionIds = getSubmissionIds(s, url)
@@ -53,7 +55,7 @@ def getLatestModels(s, models):
             submissionIdDiff = submissionIds - models[slug]['submissions'].keys()
 
         contest['submissions'] = getModelsKeyed(s, url + SUBMISSIONS, submissionIdDiff)
-        challengeSlugs = {c['challenge_slug'] for c in contest['submissions']}
+        challengeSlugs = {sub['challenge_slug'] for sub in contest['submissions'].values()}
         contest['challenges'] = getModelsKeyed(s, url + CHALLENGES, challengeSlugs)
         contests[slug] = contest
     return contests
