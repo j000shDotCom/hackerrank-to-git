@@ -14,17 +14,19 @@ SUBMISSIONS_GROUPED = SUBMISSIONS + '/grouped'
 
 def getAllData(username, password):
     (s, csrfHeader) = login(username, password)
-    models = getAllModels(s)
     user = getUserModel(s)
     assets = getAssets(s)
+    models = getAllModels(s)
     logout(s, csrfHeader)
     return {'models': models, 'user': user, 'assets': assets}
 
 def getAllModels(s):
     contests = {}
-    for contestSlug in getContestSlugs(s):
+    for slug in getContestSlugs(s):
+        print()
+        print(slug)
         contest = {}
-        url = HR_REST + CONTESTS + '/' + contestSlug
+        url = HR_REST + CONTESTS + '/' + slug
         contest['model'] = getModel(s, url)
         contest['challenges'] = getModelsKeyed(s, url + CHALLENGES, getChallengeSlugs(s, url))
         contest['submissions'] = getModelsKeyed(s, url + SUBMISSIONS, getSubmissionIds(s, url))
@@ -33,68 +35,70 @@ def getAllModels(s):
 
 def getLatestData(username, password, data):
     (s, csrfHeader) = login(username, password)
-    models = getLatestModels(s, data)
+    models = getLatestModels(s, data['models'])
     logout(s, csrfHeader)
     return {'models': models}
 
-def getLatestModels(s, data)
+def getLatestModels(s, models):
     contests = {}
-    for (slug, contest) in data['models'].items():
-        url = HR_REST + CONTESTS + slug
+    for slug in getContestSlugs(s):
+        url = HR_REST + CONTESTS + '/' + slug
+        contest = {}
         submissionIds = getSubmissionIds(s, url)
-        submissionDiff = set(submissionIds) - contest['submissions'].keys()
-        getModelsKeyed(s, url + SUBMISSIONS, submissionDiff)
+        submissionIdDiff = None
+        if slug not in models:
+            submissionIdDiff = submissionIds
+            contest['model'] = getModel(s, url)
+        else:
+            submissionIdDiff = submissionIds - models[slug]['submissions'].keys()
 
-    logout(s, csrfHeader)
-    return {'models': models}
-
-def getLatestModels(s, contestData):
-    url = HR_REST + CONTESTS + contestData['slug'] + SUBMISSIONS
-    submissionIds = getSubmissionIds(s, contestData['slug'])
-    if len(contestData['submissions']) == len(submissionIds):
-        return []
-    return getModelRange(s, url, 0, len(submissionIds) - len(contestData['submissions']))
+        contest['submissions'] = getModelsKeyed(s, url + SUBMISSIONS, submissionIdDiff)
+        challengeSlugs = {c['challenge_slug'] for c in contest['submissions']}
+        contest['challenges'] = getModelsKeyed(s, url + CHALLENGES, challengeSlugs)
+        contests[slug] = contest
+    return contests
 
 def getContestSlugs(s):
     url = HR_REST + '/hackers/me/myrank_contests?limit=100&type=recent'
-    return ['master'] + [c['slug'] for c in getModels(s, url)]
+    return {'master'} | {c['slug'] for c in getModels(s, url)}
 
 def getChallengeSlugs(s, url):
-    url += '/' + CHALLENGES
-    return [c['slug'] for c in getModels(s, url)]
-
-#def getChallenges(s, url, challengeSlugs):
-#    url += '/' + CHALLENGES
-#    challenges = {}
-#    for slug in challengeSlugs:
-#        challenges[slug] = getModel(s, url + '/' + slug)
-#    return challenges
+    url += CHALLENGES
+    return {c['slug'] for c in getModels(s, url)}
 
 def getSubmissionIds(s, url):
     url += SUBMISSIONS
-    return [s['id'] for s in getModels(s, url)]
+    return {s['id'] for s in getModels(s, url)}
 
-#def getSubmissions(s, contestSlug, submissionIds):
-#    url += SUBMISSIONS
-#    submissions = {}
-#    for i in submissionIds:
-#        submissions[i] = getModel(s, url + '/' + str(i))
-#    return submissions
-
-def getModelsKeyed(s, url, param, ids):
-    return {i: getModel(s, url + '/' + i) for i in ids}
+def getModelsKeyed(s, url, ids):
+    print(ids)
+    return {i: getModel(s, url + '/' + str(i)) for i in ids}
 
 def getModel(s, url):
-    return s.get(url).json()['model']
+    print(url)
+    r = s.get(url)
+    if not r:
+        print('REQUEST FAILED: ', r.status_code)
+        return {}
+    return r.json()['model']
 
 def getModels(s, url):
-    r = s.get(url).json()
+    print(url)
+    r = s.get(url)
+    if not r:
+        print('REQUEST FAILED: ', r.status_code)
+        return {}
+    r = r.json()
     return r['models'] + getModelRange(s, url, len(r['models']), r['total'])
 
 def getModelRange(s, url, start, end):
     if start >= end:
         return []
-    return s.get(url, params={'offset': start, 'limit': end}).json()['models']
+    r = s.get(url, params={'offset': start, 'limit': end})
+    if not r:
+        print('REQUEST FAILED: ', r.status_code)
+        return {}
+    return r.json()['models']
 
 def login(username, password):
     data = {
@@ -118,49 +122,8 @@ def getCsrfToken(s):
     raise Exception('cannot get CSRF token')
 
 def getUserModel(s):
-    return getModels(s, HR_REST + CONTESTS + '/master/hackers/me')
+    return getModel(s, HR_REST + CONTESTS + '/master/hackers/me')
 
 def getAssets(s):
-    pass
-
-# OLD
-
-#def getContests(s):
-#    url = HR_REST + '/hackers/me/myrank_contests?limit=100&type=recent'
-#    contests = {}
-#    for c in ['master'] + getModels(s, url):
-#        contests[c['slug']] = getModel(s, HR_REST + CONTESTS + c['slug'])
-#    contests = {c['slug']:{'model':getModels(s, HR_REST + CONTESTS + c['slug'])} for c in ['master'] + getModels(s, url)}
-#    return contests
-
-#def getSubmissions(s, contestSlug, submissionIds):
-#    url = HR_REST + CONTESTS + contestSlug + SUBMISSIONS
-#    submissions = {sub['id']:getModels(s, url + '/' + str(sub['id'])) for sub in getModels(s, url)}
-#    return submissions
-
-def getModelsProcedural(s):
-    contests = getContests(s)
-    for (contestSlug, contest) in contests.items():
-
-        # submissions overview
-        url = HR_REST + CONTESTS + contestSlug + SUBMISSIONS
-        submissions = getAllModels(s, url)
-        contest['submissions'] = {}
-        challengeSlugs = {s['challenge']['slug'] for s in submissions}
-
-        # challenge models
-        contests[contestSlug]['challenges'] = {}
-        for challengeSlug in challengeSlugs:
-            url = HR_REST + CONTESTS + contestSlug + CHALLENGES + challengeSlug
-            contests[contestSlug]['challenges'][challengeSlug] = getAllModels(s, url)
-            print(challengeSlug + ': ' + len(contests[contestSlug]['challenges'][challengeSlug]) + ' challenge models')
-
-        # submission models
-        contests[contestSlug]['submissions'] = {}
-        for submission in submissions:
-            url = 'https://www.hackerrank.com/rest/contests/' + contestSlug + '/submissions/' + str(submission['id'])
-            contests[contestSlug]['submissions'][submission['id']] = getAllModels(s, url)
-            print(submission['id'] + ': ' + len( contests[contestSlug]['submissions'][submission['id']]))
-
-    return contests
+    return []
 
