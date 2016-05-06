@@ -1,14 +1,5 @@
 """
  All HackerRank specific logic
-
- Relevant Links:
- https://www.hackerrank.com/rest/contests/master/submissions/grouped?offset=0limit=2
- https://www.hackerrank.com/rest/hackers/{username}/recent_challenges?offset=0&limit=2
- https://www.hackerrank.com/rest/contests/master/challenges?limit=132352
- https://www.hackerrank.com/rest/contests/master/challenges/{slug or challengeId}
- https://www.hackerrank.com/rest/contests/master/submissions/{submissionId}
- https://www.hackerrank.com/rest/contests/master/challenges/{slug}/submissions/?offset=0&limit=10
- https://www.hackerrank.com/rest/hackers/jlindsay90/contest_participation?offset=5&limit=5
 """
 
 import re
@@ -21,7 +12,7 @@ CHALLENGES = '/challenges'
 SUBMISSIONS = '/submissions'
 SUBMISSIONS_GROUPED = SUBMISSIONS + '/grouped'
 
-def getHackerRankData(username, password):
+def getAllData(username, password):
     (s, csrfHeader) = login(username, password)
     models = getAllModels(s)
     user = getUserModel(s)
@@ -30,60 +21,74 @@ def getHackerRankData(username, password):
     return {'models': models, 'user': user, 'assets': assets}
 
 def getAllModels(s):
-    contests = getContests(s)
-    for (contestSlug, contest) in contests.items():
-        contest['challenges'] = getChallenges(s, contestSlug)
-        contest['submissions'] = getSubmissions(s, contestSlug)
+    contests = {}
+    for contestSlug in getContestSlugs(s):
+        contest = {}
+        url = HR_REST + CONTESTS + '/' + contestSlug
+        contest['model'] = getModel(s, url)
+        contest['challenges'] = getModelsKeyed(s, url + CHALLENGES, getChallengeSlugs(s, url))
+        contest['submissions'] = getModelsKeyed(s, url + SUBMISSIONS, getSubmissionIds(s, url))
+        contests[slug] = contest
     return contests
 
-def getNewModels(username, password, data):
-    models = {}
+def getLatestData(username, password, data):
     (s, csrfHeader) = login(username, password)
-    for (contestSlug, contestData) in data['models'].items():
-        latest = getLatestContestData(s, contestData)
-        models[contestSlug] = latest
+    models = getLatestModels(s, data)
     logout(s, csrfHeader)
-    return models
+    return {'models': models}
 
-def getLatestContestData(s, contestData):
+def getLatestModels(s, data)
+    contests = {}
+    for (slug, contest) in data['models'].items():
+        url = HR_REST + CONTESTS + slug
+        submissionIds = getSubmissionIds(s, url)
+        submissionDiff = set(submissionIds) - contest['submissions'].keys()
+        getModelsKeyed(s, url + SUBMISSIONS, submissionDiff)
+
+    logout(s, csrfHeader)
+    return {'models': models}
+
+def getLatestModels(s, contestData):
     url = HR_REST + CONTESTS + contestData['slug'] + SUBMISSIONS
-    submissions = getSubmissionIds(s, contestData['slug'])
-    if len(contestData['submissions']) == len(submissions):
+    submissionIds = getSubmissionIds(s, contestData['slug'])
+    if len(contestData['submissions']) == len(submissionIds):
         return []
-    # TODO get submission models by IDs
-    newSubmissions = getModelRange(s, url, 0, numSubmissionsNow - len(contestData['submissions'])
-    return newSubmissions
+    return getModelRange(s, url, 0, len(submissionIds) - len(contestData['submissions']))
 
-def getContests(s):
+def getContestSlugs(s):
     url = HR_REST + '/hackers/me/myrank_contests?limit=100&type=recent'
-    contests = {c['slug']:{'model':getModels(s, HR_REST + CONTESTS + c['slug'])} for c in ['master'] + getModels(s, url)}
-    return contests
+    return ['master'] + [c['slug'] for c in getModels(s, url)]
 
-def getChallengeSlugs(s, contestSlug):
-    url = HR_REST + CONTESTS + contestSlug + CHALLENGES
+def getChallengeSlugs(s, url):
+    url += '/' + CHALLENGES
     return [c['slug'] for c in getModels(s, url)]
 
-def getChallenges(s, contestSlug):
-    url = HR_REST + CONTESTS + contestSlug + CHALLENGES
-    challenges = {c['slug']:getModels(s, url + '/' + c['slug']) for c in getModels(s, url)}
-    return challenges
+#def getChallenges(s, url, challengeSlugs):
+#    url += '/' + CHALLENGES
+#    challenges = {}
+#    for slug in challengeSlugs:
+#        challenges[slug] = getModel(s, url + '/' + slug)
+#    return challenges
 
-def getSubmissionIds(s, contestSlug):
-    url = HR_REST + CONTESTS + contestSlug + SUBMISSIONS
+def getSubmissionIds(s, url):
+    url += SUBMISSIONS
     return [s['id'] for s in getModels(s, url)]
 
-def getSubmissions(s, contestSlug):
-    url = HR_REST + CONTESTS + contestSlug + SUBMISSIONS
-    submissions = {sub['id']:getModels(s, url + '/' + str(sub['id'])) for sub in getModels(s, url)}
-    return submissions
+#def getSubmissions(s, contestSlug, submissionIds):
+#    url += SUBMISSIONS
+#    submissions = {}
+#    for i in submissionIds:
+#        submissions[i] = getModel(s, url + '/' + str(i))
+#    return submissions
 
-def getModelsForIds(s, urlSlug, param, ids):
-    return [i[param]: getModels(s, url + '/' + urlSlug + '/' + i) for i in ids]
+def getModelsKeyed(s, url, param, ids):
+    return {i: getModel(s, url + '/' + i) for i in ids}
+
+def getModel(s, url):
+    return s.get(url).json()['model']
 
 def getModels(s, url):
     r = s.get(url).json()
-    if ('model' in r):
-        return r['model']
     return r['models'] + getModelRange(s, url, len(r['models']), r['total'])
 
 def getModelRange(s, url, start, end):
@@ -97,8 +102,8 @@ def login(username, password):
         'password' : password,
         'remember_me' : 'false',
     }
-    csrfHeader = {'X-CSRF-TOKEN': getCsrfToken(s)}
     s = Session()
+    csrfHeader = {'X-CSRF-TOKEN': getCsrfToken(s)}
     s.post(HR + '/auth/login', data=data, headers=csrfHeader)
     return (s, csrfHeader)
 
@@ -119,6 +124,19 @@ def getAssets(s):
     pass
 
 # OLD
+
+#def getContests(s):
+#    url = HR_REST + '/hackers/me/myrank_contests?limit=100&type=recent'
+#    contests = {}
+#    for c in ['master'] + getModels(s, url):
+#        contests[c['slug']] = getModel(s, HR_REST + CONTESTS + c['slug'])
+#    contests = {c['slug']:{'model':getModels(s, HR_REST + CONTESTS + c['slug'])} for c in ['master'] + getModels(s, url)}
+#    return contests
+
+#def getSubmissions(s, contestSlug, submissionIds):
+#    url = HR_REST + CONTESTS + contestSlug + SUBMISSIONS
+#    submissions = {sub['id']:getModels(s, url + '/' + str(sub['id'])) for sub in getModels(s, url)}
+#    return submissions
 
 def getModelsProcedural(s):
     contests = getContests(s)

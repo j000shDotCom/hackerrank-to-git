@@ -6,7 +6,7 @@
 """
 from argparse import ArgumentParser
 from fileops import archiveData, loadPickle, dumpPickle
-from hackerrankops import getHackerRankData
+from hackerrankops import getAllData, getLatestData
 
 def getArgs():
     parser = ArgumentParser(description='Free your HackerRank.com code!')
@@ -22,10 +22,10 @@ def main():
     args = getArgs()
     data = loadPickle(args.file)
     if not data:
-        data = getHackerRankData(args.username, args.password)
+        data = getAllData(args.username, args.password)
         dumpPickle(data, args.file)
     else:
-        data = getNewData(args.username, args.password, data)
+        data = getLatestData(args.username, args.password, data)
     archiveData(args.dir, data)
 
 main()
