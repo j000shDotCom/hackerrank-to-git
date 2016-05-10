@@ -33,16 +33,6 @@ def getAllModels(s):
         contests[slug] = contest
     return contests
 
-def getSubmissions(s):
-    contests = {}
-    for slug in getContestSlugs(s):
-        print()
-        print(slug)
-        contest = {}
-        url = HR_REST + CONTESTS + '/' + slug
-        contest['model'] = getModel(s, url)
-        contest['submissions']
-
 def getLatestData(username, password, data):
     (s, csrfHeader) = login(username, password)
     models = getLatestModels(s, data['models'])

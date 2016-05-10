@@ -25,7 +25,7 @@ def main():
         data = getAllData(args.username, args.password)
         dumpPickle(data, args.file)
     else:
-        data = getLatestData(args.username, args.password, data)
+        pass #data = getLatestData(args.username, args.password, data)
     archiveData(args.dir, data)
 
 main()

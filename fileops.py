@@ -28,32 +28,8 @@ def dumpPickle(data, filename):
 def archiveData(repoPath, data):
     createdDate = data['user']['created_at']
     initializeDir(repoPath, data['user']['name'], data['user']['email'])
-    collectSubmissions(data['models'])
-    writeData()
-
-def collectSubmissions(contests):
-    return [c['submissions'] for c in contests]
-
-def collectChallenges(contest):
-    pass
-
-def archiveModels(models):
-    for (contestSlug, contest) in models.items():
-        archiveModel(contest)
-        os.makedirs(contestSlug)
-        os.chdir(contestSlug)
-        writeContest(contest)
-        gitCommitModel(contest)
-
-        for (challengeSlug, challenge) in contest['challenges'].items():
-            if challenge:
-                writeChallenge(challenge)
-        for (submissionId, submission) in sorted(contest['submissions'].items()):
-            if submission:
-                writeSubmission(submission)
-
-        os.chdir('..')
-
+    models = sortModels(data['models'])
+    writeModels(models)
 
 def initializeDir(path, name, email, repo = None):
     os.makedirs(path)
@@ -65,9 +41,38 @@ def initializeDir(path, name, email, repo = None):
     if repo:
         git.remote.add('origin', repo)
 
+def sortModels(contests):
+    models = dict()
+    for co in contests.values():
+        models[co['model']['created_at']] = (co, 'co')
+        for ch in co['challenges'].values():
+            models[ch['created_at']] = (ch, 'ch')
+        for s in co['submissions'].values():
+            models[s['created_at']] = (s, 'sub')
+    return models
+
+def writeModels(models):
+    for t in sorted(models.keys()):
+        (m, ty) = models[t]
+        if ty == 'co':
+            os.makedirs(m['model']['slug'])
+            os.chdir(m['model']['slug'])
+            writeContest(m)
+        elif ty == 'ch':
+            os.chdir(m['contest_slug'])
+            writeChallenge(m)
+        elif ty == 'sub':
+            os.chdir(m['contest_slug'])
+            writeSubmission(m)
+        else:
+            print("HOW DID I GET HERE")
+            input()
+        os.chdir('..')
+
 def writeContest(contest):
-    hrurl = HR + CONTESTS + '/' + contest['model']['slug']
-    resturl = HR_REST + CONTESTS + '/' + contest['model']['slug']
+    model = contest['model']
+    hrurl = HR + CONTESTS + '/' + model['slug']
+    resturl = HR_REST + CONTESTS + '/' + model['slug']
     challengehtml = '<ul>'
     for (challengeSlug, challenge) in contest['challenges'].items():
         challengehtml += '<li><a href="{}">{}</a></li>'.format(challengeSlug + '.html', challengeSlug)
@@ -76,16 +81,17 @@ def writeContest(contest):
     <html><head></head><body>
     <h1>{}</h1><a href="{}">Contest</a> <a href="{}">JSON</a><hr/>{}<hr/>
     <h2>Challenges</h2>{}</body></html>
-    """.format(contest['model']['name'], hrurl, resturl, contest['model']['description_html'], challengehtml)
+    """.format(model['name'], hrurl, resturl, model['description_html'], challengehtml)
 
-    with open('index.html', 'w') as f:
+    filename = 'index.html'
+    with open(filename, 'w') as f:
         f.write(BeautifulSoup(html, 'html5lib').prettify() + '\n')
-    git.add('index.html')
+    gitCommitModel(contest['model'], filename, 'contest created: ' + model['slug'])
 
 def writeChallenge(challenge):
     asseturl = 'https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_CHTML'
     js = "MathJax.Hub.Config({tex2jax:{inlineMath:[['$','$'],['\\(','\\)']]}});"
-    hrurl = HR + \
+    hrurl = HR \
         + (CONTESTS + '/' + challenge['contest_slug'] if challenge['contest_slug'] != 'master' else '') \
         + CHALLENGES + '/' + challenge['slug']
     jsonurl = HR_REST + CONTESTS + '/' + challenge['contest_slug'] + CHALLENGES + '/' + challenge['slug']
@@ -98,17 +104,20 @@ def writeChallenge(challenge):
     filename = challenge['slug'] + '.html'
     with open(filename, 'w') as f:
         f.write(BeautifulSoup(html, "html5lib").prettify() + "\n")
-    git.add(filename)
+    gitCommitModel(challenge, filename, 'challenge created: ' + challenge['slug'])
 
 def writeSubmission(sub):
     filename = sub['challenge_slug'] + getFileExtension(sub)
     with open(filename, 'w') as f:
         f.write(sub['code'] + "\n")
-    envDict = {'GIT_COMMITTER_DATE': sub['created_at'], 'GIT_AUTHOR_DATE': sub['created_at']}
     msg = "{} ({}) {} {}".format(sub['name'], sub['language'], getFrac(sub['testcase_status']), sub['status'])
+    gitCommitModel(sub, filename, msg)
+
+def gitCommitModel(m, filename, msg):
+    envDict = {'GIT_COMMITTER_DATE': m['created_at'], 'GIT_AUTHOR_DATE': m['created_at']}
     git.add(filename)
-    git.commit(m=msg, _ok_code=[0,1], date=sub['created_at'])
-    git.commit('--no-edit', amend=True, _env=envDict) # enforce date
+    git.commit(m=msg, _ok_code=[0,1], date=m['created_at'])
+    git.commit('--no-edit', amend=True, _env=envDict) # force date
 
 def getFileExtension(submission):
     lang = submission['language']
