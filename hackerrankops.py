@@ -37,12 +37,12 @@ def getLatestData(username, password, data):
     (s, csrfHeader) = login(username, password)
     models = getLatestModels(s, data['models'])
     logout(s, csrfHeader)
-    return {'models': models}
+    return {'models': models, 'user': data['user']}
 
 def getLatestModels(s, models):
+    print('checking for latest models')
     contests = {}
     for slug in getContestSlugs(s):
-        print()
         print(slug)
         url = HR_REST + CONTESTS + '/' + slug
         contest = {}
@@ -50,10 +50,12 @@ def getLatestModels(s, models):
         submissionIdDiff = None
         if slug not in models:
             submissionIdDiff = submissionIds
-            contest['model'] = getModel(s, url)
         else:
             submissionIdDiff = submissionIds - models[slug]['submissions'].keys()
 
+        if not submissionIdDiff:
+            continue
+        contest['model'] = getModel(s, url)
         contest['submissions'] = getModelsKeyed(s, url + SUBMISSIONS, submissionIdDiff)
         challengeSlugs = {sub['challenge_slug'] for sub in contest['submissions'].values()}
         contest['challenges'] = getModelsKeyed(s, url + CHALLENGES, challengeSlugs)
@@ -83,7 +85,7 @@ def getModelsKeyed(s, url, ids):
     return models
 
 def getModel(s, url):
-    print(url)
+    #print(url)
     r = s.get(url)
     if not r:
         print('REQUEST FAILED: ', r.status_code)
@@ -91,7 +93,7 @@ def getModel(s, url):
     return r.json()['model']
 
 def getModels(s, url):
-    print(url)
+    #print(url)
     r = s.get(url)
     if not r:
         print('REQUEST FAILED: ', r.status_code)

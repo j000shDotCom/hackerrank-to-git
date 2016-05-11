@@ -26,14 +26,37 @@ def dumpPickle(data, filename):
         return None
 
 def archiveData(repoPath, data):
-    createdDate = data['user']['created_at']
+    if not data['models']:
+        return
+    createUserPage(data['user'])
     initializeDir(repoPath, data['user']['name'], data['user']['email'])
     models = sortModels(data['models'])
     writeModels(models)
 
+def updateData(data, new):
+    models = data['models']
+    newModels = new['models']
+    for (coSlug, contest) in newModels.items():
+        if not coSlug in models:
+            models[coSlug] = contest
+        for (chSlug, challenge) in contest['challenges'].items():
+            if not chSlug in models[coSlug]['challenges']:
+                models[coSlug]['challenges'][chSlug] = challenge
+        for (sId, submission) in contest['submissions'].items():
+            if not sId in models[coSlug]['submissions']:
+                models[coSlug]['submissions'] = submission
+    data['models'] = models
+    return data
+
+def createUserPage(user):
+    createdDate = user['created_at']
+
 def initializeDir(path, name, email, repo = None):
-    os.makedirs(path)
+    if not os.path.exists(path):
+        os.makedirs(path)
     os.chdir(path)
+    if os.path.exists('.git/'):
+        return
     git.init()
     os.chmod(path + '/.git/', 0b111000000)
     git.config('--local', 'user.name', '"' + name + '"')
@@ -55,11 +78,18 @@ def writeModels(models):
     for t in sorted(models.keys()):
         (m, ty) = models[t]
         if ty == 'co':
-            os.makedirs(m['model']['slug'])
+            try:
+                os.makedirs(m['model']['slug'])
+            except:
+                pass
             os.chdir(m['model']['slug'])
             writeContest(m)
         elif ty == 'ch':
-            os.chdir(m['contest_slug'])
+            try:
+                os.chdir(m['contest_slug'])
+            except:
+                os.makedirs(m['contest_slug'])
+                os.chdir(m['contest_slug'])
             writeChallenge(m)
         elif ty == 'sub':
             os.chdir(m['contest_slug'])
@@ -123,6 +153,8 @@ def getFileExtension(submission):
     lang = submission['language']
     if lang == 'java' or lang == 'java8':
         return '.java'
+    if lang == 'python' or lang == 'python3':
+        return '.py'
     if lang == 'haskell':
         return '.hs'
     if lang == 'prolog' or lang == 'perl':
