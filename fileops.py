@@ -13,17 +13,24 @@ CHALLENGES = '/challenges'
 SUBMISSIONS = '/submissions'
 SUBMISSIONS_GROUPED = SUBMISSIONS + '/grouped'
 
+def getFullPath(path):
+    return os.path.abspath(path)
+
 def loadPickle(filename):
     try:
-        return load(open(filename, 'rb'))
+        models = load(open(filename, 'rb'))
     except:
         return None
+    print('loaded data from pickle')
+    return models
 
 def dumpPickle(data, filename):
     try:
         dump(data, open(filename, 'wb'))
-    except:
+    except e:
+        print(e)
         return None
+    print('successfully dumped data')
 
 def archiveData(repoPath, data):
     if not data['models']:
@@ -32,21 +39,6 @@ def archiveData(repoPath, data):
     initializeDir(repoPath, data['user']['name'], data['user']['email'])
     models = sortModels(data['models'])
     writeModels(models)
-
-def updateData(data, new):
-    models = data['models']
-    newModels = new['models']
-    for (coSlug, contest) in newModels.items():
-        if not coSlug in models:
-            models[coSlug] = contest
-        for (chSlug, challenge) in contest['challenges'].items():
-            if not chSlug in models[coSlug]['challenges']:
-                models[coSlug]['challenges'][chSlug] = challenge
-        for (sId, submission) in contest['submissions'].items():
-            if not sId in models[coSlug]['submissions']:
-                models[coSlug]['submissions'] = submission
-    data['models'] = models
-    return data
 
 def createUserPage(user):
     createdDate = user['created_at']

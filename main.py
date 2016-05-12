@@ -5,8 +5,8 @@
  Sign into HackerRank and archive solutions in a git repository (where they should be)
 """
 from argparse import ArgumentParser
-from fileops import archiveData, loadPickle, dumpPickle, updateData
-from hackerrankops import getAllData, getLatestData
+from fileops import archiveData, loadPickle, dumpPickle, getFullPath
+from hackerrankops import getAllData, getNewData
 
 def getArgs():
     parser = ArgumentParser(description='Free your HackerRank.com code!')
@@ -20,14 +20,16 @@ def getArgs():
 
 def main():
     args = getArgs()
-    pickleData = loadPickle(args.file)
-    if not pickleData:
-        fetchedData = getAllData(args.username, args.password)
-        archiveData(args.dir, fetchedData)
-        dumpPickle(fetchedData, args.file)
+    picklePath = getFullPath(args.file)
+    archivePath = getFullPath(args.dir)
+    data = loadPickle(picklePath)
+    if not data:
+        data = getAllData(args.username, args.password)
+        archiveData(archivePath, data)
     else:
-        newData = getLatestData(args.username, args.password, pickleData)
-        archiveData(args.dir, newData)
-        data = updateData(pickleData, newData)
-        dumpPickle(data, args.file)
+        newData = getNewData(args.username, args.password, data)
+        archiveData(archivePath, newData)
+        data.update(newData)
+    dumpPickle(data, picklePath)
 main()
+

@@ -33,7 +33,7 @@ def getAllModels(s):
         contests[slug] = contest
     return contests
 
-def getLatestData(username, password, data):
+def getNewData(username, password, data):
     (s, csrfHeader) = login(username, password)
     models = getLatestModels(s, data['models'])
     logout(s, csrfHeader)
@@ -96,7 +96,7 @@ def getModels(s, url):
     #print(url)
     r = s.get(url)
     if not r:
-        print('REQUEST FAILED: ', r.status_code)
+        print('REQUEST FAILED: ', r.status_code, url)
         return {}
     r = r.json()
     return r['models'] + getModelRange(s, url, len(r['models']), r['total'])
@@ -106,7 +106,7 @@ def getModelRange(s, url, start, end):
         return []
     r = s.get(url, params={'offset': start, 'limit': end})
     if not r:
-        print('REQUEST FAILED: ', r.status_code)
+        print('REQUEST FAILED: ', r.status_code, url)
         return {}
     return r.json()['models']
 
