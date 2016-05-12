@@ -40,6 +40,25 @@ def archiveData(repoPath, data):
     models = sortModels(data['models'])
     writeModels(models)
 
+def mergeData(data, newData):
+    for slug in newData['models'].keys():
+        old = data[slug]
+        new = newData[slug]
+        old['model'] = new['model']
+        old['challenges'].update(new['challenges'])
+        old['submissions'].update(new['submissions'])
+        #if not coSlug in models:
+        #    models[coSlug] = contest
+        #contest['challenges'].
+        #for (chSlug, challenge) in contest['challenges'].items():
+        #    if not chSlug in models[coSlug]['challenges']:
+        #        models[coSlug]['challenges'][chSlug] = challenge
+        #for (sId, submission) in contest['submissions'].items():
+        #    if not sId in models[coSlug]['submissions']:
+        #        models[coSlug]['submissions'][sId] = submission
+    data['models'] = models
+    return data
+
 def createUserPage(user):
     createdDate = user['created_at']
 

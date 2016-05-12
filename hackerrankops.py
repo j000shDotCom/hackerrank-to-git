@@ -15,18 +15,16 @@ SUBMISSIONS_GROUPED = SUBMISSIONS + '/grouped'
 def getAllData(username, password):
     (s, csrfHeader) = login(username, password)
     user = getUserModel(s)
-    assets = getAssets(s)
     models = getAllModels(s)
     logout(s, csrfHeader)
-    return {'models': models, 'user': user, 'assets': assets}
+    return {'models': models, 'user': user}
 
 def getAllModels(s):
     contests = {}
     for slug in getContestSlugs(s):
-        print()
-        print(slug)
-        contest = {}
+        print('\n', slug)
         url = HR_REST + CONTESTS + '/' + slug
+        contest = {}
         contest['model'] = getModel(s, url)
         contest['challenges'] = getModelsKeyed(s, url + CHALLENGES, getChallengeSlugs(s, url))
         contest['submissions'] = getModelsKeyed(s, url + SUBMISSIONS, getSubmissionIds(s, url))
@@ -43,20 +41,16 @@ def getLatestModels(s, models):
     print('checking for latest models')
     contests = {}
     for slug in getContestSlugs(s):
-        print(slug)
+        print('\n', slug)
+        submissionIds = getSubmissionIds(s, url)
+        if slug in models:
+            submissionIds -= models[slug]['submissions'].keys()
+        if not submissionIds:
+            continue
         url = HR_REST + CONTESTS + '/' + slug
         contest = {}
-        submissionIds = getSubmissionIds(s, url)
-        submissionIdDiff = None
-        if slug not in models:
-            submissionIdDiff = submissionIds
-        else:
-            submissionIdDiff = submissionIds - models[slug]['submissions'].keys()
-
-        if not submissionIdDiff:
-            continue
         contest['model'] = getModel(s, url)
-        contest['submissions'] = getModelsKeyed(s, url + SUBMISSIONS, submissionIdDiff)
+        contest['submissions'] = getModelsKeyed(s, url + SUBMISSIONS, submissionIds)
         challengeSlugs = {sub['challenge_slug'] for sub in contest['submissions'].values()}
         contest['challenges'] = getModelsKeyed(s, url + CHALLENGES, challengeSlugs)
         contests[slug] = contest
@@ -88,7 +82,7 @@ def getModel(s, url):
     #print(url)
     r = s.get(url)
     if not r:
-        print('REQUEST FAILED: ', r.status_code)
+        print('REQUEST FAILED: ', r.status_code, url)
         return {}
     return r.json()['model']
 
