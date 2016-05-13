@@ -19,73 +19,35 @@ def getFullPath(path):
 def loadPickle(filename):
     try:
         models = load(open(filename, 'rb'))
+        print('loaded data from pickle')
     except:
         return None
-    print('loaded data from pickle')
     return models
 
-def dumpPickle(data, filename):
-    try:
-        dump(data, open(filename, 'wb'))
-    except e:
-        print(e)
-        return None
+def dumpPickle(filename, data):
+    dump(data, open(filename, 'wb'))
     print('successfully dumped data')
 
-def archiveData(repoPath, data):
-    if not data['models']:
-        return
-    createUserPage(data['user'])
-    initializeDir(repoPath, data['user']['name'], data['user']['email'])
-    models = sortModels(data['models'])
-    writeModels(models)
-
-def mergeData(data, newData):
-    for slug in newData['models'].keys():
-        old = data[slug]
-        new = newData[slug]
-        old['model'] = new['model']
-        old['challenges'].update(new['challenges'])
-        old['submissions'].update(new['submissions'])
-        #if not coSlug in models:
-        #    models[coSlug] = contest
-        #contest['challenges'].
-        #for (chSlug, challenge) in contest['challenges'].items():
-        #    if not chSlug in models[coSlug]['challenges']:
-        #        models[coSlug]['challenges'][chSlug] = challenge
-        #for (sId, submission) in contest['submissions'].items():
-        #    if not sId in models[coSlug]['submissions']:
-        #        models[coSlug]['submissions'][sId] = submission
-    data['models'] = models
-    return data
-
-def createUserPage(user):
-    createdDate = user['created_at']
-
-def initializeDir(path, name, email, repo = None):
+def initializeDir(path, user, repo = None):
     if not os.path.exists(path):
+        print('making directories')
         os.makedirs(path)
     os.chdir(path)
     if os.path.exists('.git/'):
+        print('git respository already initialized')
         return
+    print('initializing git repository')
     git.init()
     os.chmod(path + '/.git/', 0b111000000)
-    git.config('--local', 'user.name', '"' + name + '"')
-    git.config('--local', 'user.email', '"' + email + '"')
+    git.config('--local', 'user.name', '"' + user['name'] + '"')
+    git.config('--local', 'user.email', '"' + user['email'] + '"')
     if repo:
         git.remote.add('origin', repo)
 
-def sortModels(contests):
-    models = dict()
-    for co in contests.values():
-        models[co['model']['created_at']] = (co, 'co')
-        for ch in co['challenges'].values():
-            models[ch['created_at']] = (ch, 'ch')
-        for s in co['submissions'].values():
-            models[s['created_at']] = (s, 'sub')
-    return models
-
 def writeModels(models):
+    if not models:
+        return
+    print('writing models')
     for t in sorted(models.keys()):
         (m, ty) = models[t]
         if ty == 'co':
@@ -105,9 +67,6 @@ def writeModels(models):
         elif ty == 'sub':
             os.chdir(m['contest_slug'])
             writeSubmission(m)
-        else:
-            print("HOW DID I GET HERE")
-            input()
         os.chdir('..')
 
 def writeContest(contest):
@@ -173,5 +132,5 @@ def getFileExtension(submission):
     return '.txt'
 
 def getFrac(testcases):
-    return '[{}/{}]'.format(sum(testcases), len(testcases))
+    return '[%d/%d]' % (sum(testcases), len(testcases))
 

@@ -5,8 +5,8 @@
  Sign into HackerRank and archive solutions in a git repository (where they should be)
 """
 from argparse import ArgumentParser
-from fileops import archiveData, loadPickle, dumpPickle, getFullPath, mergeData
-from hackerrankops import getAllData, getNewData
+import hackerrankops as HR
+import fileops as IO
 
 def getArgs():
     parser = ArgumentParser(description='Free your HackerRank.com code!')
@@ -20,16 +20,26 @@ def getArgs():
 
 def main():
     args = getArgs()
-    picklePath = getFullPath(args.file)
-    archivePath = getFullPath(args.dir)
-    data = loadPickle(picklePath)
-    if not data:
-        data = getAllData(args.username, args.password)
-        archiveData(archivePath, data)
-    else:
-        newData = getNewData(args.username, args.password, data)
-        archiveData(archivePath, newData)
-        data = mergeData(data, newData)
-    dumpPickle(data, picklePath)
+    picklePath = IO.getFullPath(args.file)
+    archivePath = IO.getFullPath(args.dir)
+
+    models = IO.loadPickle(picklePath)
+
+    (s, csrfHeader) = HR.login(args.username, args.password)
+    user = HR.getUserModel(s)
+    newModels = HR.getNewModels(s, models)
+    HR.logout(s, csrfHeader)
+
+    if not newModels:
+        print('no new submissions. exiting.')
+        return
+
+    allModels = HR.mergeModels(models, newModels)
+    IO.dumpPickle(picklePath, allModels)
+
+    IO.initializeDir(archivePath, user, args.repo)
+    sortedModels = HR.sortModels(newModels)
+    IO.writeModels(sortedModels)
+
 main()
 

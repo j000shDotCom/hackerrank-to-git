@@ -12,42 +12,19 @@ CHALLENGES = '/challenges'
 SUBMISSIONS = '/submissions'
 SUBMISSIONS_GROUPED = SUBMISSIONS + '/grouped'
 
-def getAllData(username, password):
-    (s, csrfHeader) = login(username, password)
-    user = getUserModel(s)
-    models = getAllModels(s)
-    logout(s, csrfHeader)
-    return {'models': models, 'user': user}
-
-def getAllModels(s):
+def getNewModels(s, models):
+    if not models:
+        models = {}
+    print('retrieving latest models')
     contests = {}
     for slug in getContestSlugs(s):
         print('\n', slug)
         url = HR_REST + CONTESTS + '/' + slug
-        contest = {}
-        contest['model'] = getModel(s, url)
-        contest['challenges'] = getModelsKeyed(s, url + CHALLENGES, getChallengeSlugs(s, url))
-        contest['submissions'] = getModelsKeyed(s, url + SUBMISSIONS, getSubmissionIds(s, url))
-        contests[slug] = contest
-    return contests
-
-def getNewData(username, password, data):
-    (s, csrfHeader) = login(username, password)
-    models = getLatestModels(s, data['models'])
-    logout(s, csrfHeader)
-    return {'models': models, 'user': data['user']}
-
-def getLatestModels(s, models):
-    print('checking for latest models')
-    contests = {}
-    for slug in getContestSlugs(s):
-        print('\n', slug)
         submissionIds = getSubmissionIds(s, url)
-        if slug in models:
+        if slug in models and 'submissions' in models[slug]:
             submissionIds -= models[slug]['submissions'].keys()
         if not submissionIds:
             continue
-        url = HR_REST + CONTESTS + '/' + slug
         contest = {}
         contest['model'] = getModel(s, url)
         contest['submissions'] = getModelsKeyed(s, url + SUBMISSIONS, submissionIds)
@@ -55,6 +32,32 @@ def getLatestModels(s, models):
         contest['challenges'] = getModelsKeyed(s, url + CHALLENGES, challengeSlugs)
         contests[slug] = contest
     return contests
+
+def mergeModels(models, newModels):
+    if not newModels:
+        return models or {}
+    if not models:
+        return newModels or {}
+    for slug in newModels.keys():
+        if slug not in models:
+            models[slug] = newModels[slug]
+            continue
+        old = models[slug]
+        new = newModels[slug]
+        old['model'] = new['model']
+        old['challenges'].update(new['challenges'])
+        old['submissions'].update(new['submissions'])
+    return models
+
+def sortModels(contests):
+    models = dict()
+    for co in contests.values():
+        models[co['model']['created_at']] = (co, 'co')
+        for ch in co['challenges'].values():
+            models[ch['created_at']] = (ch, 'ch')
+        for s in co['submissions'].values():
+            models[s['created_at']] = (s, 'sub')
+    return models
 
 def getContestSlugs(s):
     url = HR_REST + '/hackers/me/myrank_contests?limit=100&type=recent'
@@ -79,7 +82,6 @@ def getModelsKeyed(s, url, ids):
     return models
 
 def getModel(s, url):
-    #print(url)
     r = s.get(url)
     if not r:
         print('REQUEST FAILED: ', r.status_code, url)
@@ -87,7 +89,6 @@ def getModel(s, url):
     return r.json()['model']
 
 def getModels(s, url):
-    #print(url)
     r = s.get(url)
     if not r:
         print('REQUEST FAILED: ', r.status_code, url)
