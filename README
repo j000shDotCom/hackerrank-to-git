@@ -1,1 +1,4 @@
 Retrieve your files from hackerrank.com and throw them into your own git repository!
+
+Dependencies:
+pip3 install bs4 requests sh html5lib
