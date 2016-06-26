@@ -44,7 +44,7 @@ def initializeDir(path, user, repo = None):
     if repo:
         git.remote.add('origin', repo)
 
-def writeModels(models):
+def writeModels(models, html):
     if not models:
         return
     print('writing models')
@@ -56,14 +56,16 @@ def writeModels(models):
             except:
                 pass
             os.chdir(m['model']['slug'])
-            writeContest(m)
+            if html:
+                writeContest(m)
         elif ty == 'ch':
             try:
                 os.chdir(m['contest_slug'])
             except:
                 os.makedirs(m['contest_slug'])
                 os.chdir(m['contest_slug'])
-            writeChallenge(m)
+            if html:
+                writeChallenge(m)
         elif ty == 'sub':
             os.chdir(m['contest_slug'])
             writeSubmission(m)
