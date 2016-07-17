@@ -1,3 +1,5 @@
 *.swp
 *.pickle
 __pycache__/
+run.sh
+hrdir/
