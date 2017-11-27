@@ -28,17 +28,13 @@ class HRClient():
         self.logout()
 
     def login(self, username, password):
-        self.session.get(HR + '/login')
-
+        self.session.get(HR + '/dashboard')
         data = {
             'login' : username,
             'password' : password,
-            'remember_me' : 'false',
+            'remember_me' : False,
         }
-        self.session.post(HR + '/auth/login', data = data)
-        self.session.get(HR + '/dashboard')
-
-        self.session.put(HR_REST + CONTESTS + '/master/hackers/me', json = {"updated_modal_profiled_data":{"updated":True}})
+        self.session.post(HR + '/auth/login', json = data)
 
     def logout(self):
         return self.session.delete(HR + '/auth/logout')
@@ -95,7 +91,7 @@ class HRClient():
         return self.session.get(url, offset).json()['models']
 
     def getUserModel(self):
-        return self.session.get(HR_REST + CONTESTS + '/master/hackers/me')
+        return self.session.put(HR_REST + CONTESTS + '/master/hackers/me', json = {"updated_modal_profiled_data":{"updated":True}})
 
 
     def includeSessionInHook(self, *factory_args, **factory_kwargs):
