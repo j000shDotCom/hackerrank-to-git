@@ -4,6 +4,9 @@
 
 import re
 from requests import Session
+import json
+import logging # TODO get rid of these print statements!
+from bs4 import BeautifulSoup
 
 HR = 'https://www.hackerrank.com'
 HR_REST = HR + '/rest'
@@ -12,26 +15,97 @@ CHALLENGES = '/challenges'
 SUBMISSIONS = '/submissions'
 SUBMISSIONS_GROUPED = SUBMISSIONS + '/grouped'
 
-def getNewModels(s, models):
-    if not models:
+class HRClient():
+    def __init__(self, username, password):
+        self.session = Session()
+        self.session.hooks['response'].extend([self.includeSessionInHook(f) for f in [getCsrf, logAndValidate]])
+        self.login(username, password)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.logout()
+
+    def login(self, username, password):
+        self.session.get(HR + '/login')
+
+        data = {
+            'login' : username,
+            'password' : password,
+            'remember_me' : 'false',
+        }
+        self.session.post(HR + '/auth/login', data = data)
+        self.session.get(HR + '/dashboard')
+
+        self.session.put(HR_REST + CONTESTS + '/master/hackers/me', json = {"updated_modal_profiled_data":{"updated":True}})
+
+    def logout(self):
+        return self.session.delete(HR + '/auth/logout')
+
+    def getNewModels(self, models):
+        if not models:
+            models = {}
+        contests = {}
+        for slug in self.getContestSlugs():
+            print('\n', slug)
+            url = HR_REST + CONTESTS + '/' + slug
+            submissionIds = self.getSubmissionIds(url)
+            if slug in models and 'submissions' in models[slug]:
+                submissionIds -= models[slug]['submissions'].keys()
+            if not submissionIds:
+                continue
+            contest = {}
+            contest['model'] = self.session.get(url).json()['model']
+            contest['submissions'] = self.getModelsKeyed(url + SUBMISSIONS, submissionIds)
+            submissions = contest['submissions'].values()
+            challengeSlugs = {sub['challenge_slug'] for sub in submissions}
+            contest['challenges'] = self.getModelsKeyed(url + CHALLENGES, challengeSlugs)
+            contests[slug] = contest
+        return contests
+
+    def getContestSlugs(self):
+        url = HR_REST + '/hackers/me/myrank_contests?limit=100&type=recent'
+        return {'master'} | {c['slug'] for c in self.getModels(url)}
+
+    def getChallengeSlugs(self, url):
+        return {c['slug'] for c in self.getModels(url + 'CHALLENGES')}
+
+    def getSubmissionIds(self, url):
+        return {s['id'] for s in self.getModels(url + SUBMISSIONS)}
+
+    def getModelsKeyed(self, url, ids):
+        print(ids)
         models = {}
-    print('retrieving latest models')
-    contests = {}
-    for slug in getContestSlugs(s):
-        print('\n', slug)
-        url = HR_REST + CONTESTS + '/' + slug
-        submissionIds = getSubmissionIds(s, url)
-        if slug in models and 'submissions' in models[slug]:
-            submissionIds -= models[slug]['submissions'].keys()
-        if not submissionIds:
-            continue
-        contest = {}
-        contest['model'] = getModel(s, url)
-        contest['submissions'] = getModelsKeyed(s, url + SUBMISSIONS, submissionIds)
-        challengeSlugs = {sub['challenge_slug'] for sub in contest['submissions'].values()}
-        contest['challenges'] = getModelsKeyed(s, url + CHALLENGES, challengeSlugs)
-        contests[slug] = contest
-    return contests
+        for i in ids:
+            model = self.session.get(url + '/' + str(i))
+            if not model:
+                continue
+            models[i] = model
+        return models
+
+    def getModels(self, url):
+        r = self.session.get(url).json()
+        return r['models'] + self.getModelRange(url, len(r['models']), r['total'])
+
+    def getModelRange(self, url, start, end):
+        if start >= end:
+            return []
+        offset = {'params': {'offset': start, 'limit': end}}
+        return self.session.get(url, offset).json()['models']
+
+    def getUserModel(self):
+        return self.session.get(HR_REST + CONTESTS + '/master/hackers/me')
+
+
+    def includeSessionInHook(self, *factory_args, **factory_kwargs):
+        def responseHook(response, *request_args, **request_kwargs):
+            
+            for func in factory_args:
+                func(response, session = self.session)
+
+            return response
+        return responseHook
 
 def mergeModels(models, newModels):
     if not newModels:
@@ -59,76 +133,40 @@ def sortModels(contests):
             models[s['created_at']] = (s, 'sub')
     return models
 
-def getContestSlugs(s):
-    url = HR_REST + '/hackers/me/myrank_contests?limit=100&type=recent'
-    return {'master'} | {c['slug'] for c in getModels(s, url)}
+def getCsrf(r, *args, **kwargs):
+    soup = BeautifulSoup(r.text, 'html5lib')
+    csrfHtml = soup.find(id='csrf-token')
+    if csrfHtml:
+        csrfHtml = csrfHtml['content']
 
-def getChallengeSlugs(s, url):
-    url += CHALLENGES
-    return {c['slug'] for c in getModels(s, url)}
+    j = None
+    csrfJson = None
+    try:
+        j = json.loads(r.content)
+        if 'csrf_token' in j:
+            csrfJson = j['csrf_token']
+        elif '_csrf_token' in j:
+            csrfJson = j['_csrf_token']
+    except Exception:
+        pass
+    
+    csrf = csrfHtml or csrfJson
+    if 'session' in kwargs and csrf:
+        kwargs['session'].headers.update({'X-CSRF-TOKEN': csrf})
+        print('CSRF', csrf)
 
-def getSubmissionIds(s, url):
-    url += SUBMISSIONS
-    return {s['id'] for s in getModels(s, url)}
+def logAndValidate(r, *args, **kwargs):
+    print('-' * 50)
+    print(r.status_code, r.request.method, r.request.url)
+    if r.cookies:
+        for cookie in r.cookies:
+            print(cookie)
+    if r.history:
+        print('REDIRECT', r.history)
+    if not r.ok:
+        raise ValueError('Request Failed: ', r.status_code, r.request.url, r.text)
+    #if '_hrank_session' not in r.cookies.keys():
+    #    raise ValueError('The _hrank_session is not there!', r.cookies.keys())
 
-def getModelsKeyed(s, url, ids):
-    print(ids)
-    models = {}
-    for i in ids:
-        model = getModel(s, url + '/' + str(i))
-        if not model:
-            continue
-        models[i] = model
-    return models
-
-def getModel(s, url):
-    r = s.get(url)
-    if not r:
-        print('REQUEST FAILED: ', r.status_code, url)
-        return {}
-    return r.json()['model']
-
-def getModels(s, url):
-    r = s.get(url)
-    if not r:
-        print('REQUEST FAILED: ', r.status_code, url)
-        return {}
-    r = r.json()
-    return r['models'] + getModelRange(s, url, len(r['models']), r['total'])
-
-def getModelRange(s, url, start, end):
-    if start >= end:
-        return []
-    r = s.get(url, params={'offset': start, 'limit': end})
-    if not r:
-        print('REQUEST FAILED: ', r.status_code, url)
-        return {}
-    return r.json()['models']
-
-def login(username, password):
-    data = {
-        'login' : username,
-        'password' : password,
-        'remember_me' : 'false',
-    }
-    s = Session()
-    csrfHeader = {'X-CSRF-TOKEN': getCsrfToken(s)}
-    s.post(HR + '/auth/login', data=data, headers=csrfHeader)
-    return (s, csrfHeader)
-
-def logout(s, csrfHeader):
-    s.delete(HR + '/auth/logout', headers=csrfHeader)
-
-def getCsrfToken(s):
-    r = s.get(HR)
-    for line in r.text.split("\n"):
-        if ('csrf-token' in line):
-            return re.sub(r"<meta content=\"([^\"]+)\".*", r"\1", line)
-    raise Exception('cannot get CSRF token')
-
-def getUserModel(s):
-    return getModel(s, HR_REST + CONTESTS + '/master/hackers/me')
-
-def getAssets(s):
-    return []
-
+def printText(r, *args, **kwargs):
+    print(r.text)
