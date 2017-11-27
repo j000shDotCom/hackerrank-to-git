@@ -9,7 +9,7 @@ from argparse import ArgumentParser
 from hackerrankops import HRClient
 import fileops as IO
 
-#import better_exceptions
+import better_exceptions
 
 def getArgs():
     parser = ArgumentParser(description='Free your HackerRank.com code!')

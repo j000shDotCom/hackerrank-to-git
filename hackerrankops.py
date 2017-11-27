@@ -44,18 +44,19 @@ class HRClient():
             models = {}
         contests = {}
         for slug in self.getContestSlugs():
-            print('\n', slug)
             url = HR_REST + CONTESTS + '/' + slug
             submissionIds = self.getSubmissionIds(url)
             if slug in models and 'submissions' in models[slug]:
                 submissionIds -= models[slug]['submissions'].keys()
+
             if not submissionIds:
                 continue
+
             contest = {}
             contest['model'] = self.session.get(url).json()['model']
             contest['submissions'] = self.getModelsKeyed(url + SUBMISSIONS, submissionIds)
             submissions = contest['submissions'].values()
-            challengeSlugs = {sub['challenge_slug'] for sub in submissions}
+            challengeSlugs = {sub.json()['model']['challenge_slug'] for sub in submissions}
             contest['challenges'] = self.getModelsKeyed(url + CHALLENGES, challengeSlugs)
             contests[slug] = contest
         return contests
@@ -71,7 +72,6 @@ class HRClient():
         return {s['id'] for s in self.getModels(url + SUBMISSIONS)}
 
     def getModelsKeyed(self, url, ids):
-        print(ids)
         models = {}
         for i in ids:
             model = self.session.get(url + '/' + str(i))
@@ -88,18 +88,17 @@ class HRClient():
         if start >= end:
             return []
         offset = {'params': {'offset': start, 'limit': end}}
-        return self.session.get(url, offset).json()['models']
+        return self.session.get(url, json = offset).json()['models']
 
     def getUserModel(self):
-        return self.session.put(HR_REST + CONTESTS + '/master/hackers/me', json = {"updated_modal_profiled_data":{"updated":True}})
-
+        url = HR_REST + CONTESTS + '/master/hackers/me'
+        json = {"updated_modal_profiled_data": {"updated": True}}
+        return self.session.put(url, json = json).json()['model']
 
     def includeSessionInHook(self, *factory_args, **factory_kwargs):
         def responseHook(response, *request_args, **request_kwargs):
-            
             for func in factory_args:
                 func(response, session = self.session)
-
             return response
         return responseHook
 
@@ -149,20 +148,8 @@ def getCsrf(r, *args, **kwargs):
     csrf = csrfHtml or csrfJson
     if 'session' in kwargs and csrf:
         kwargs['session'].headers.update({'X-CSRF-TOKEN': csrf})
-        print('CSRF', csrf)
 
 def logAndValidate(r, *args, **kwargs):
-    print('-' * 50)
     print(r.status_code, r.request.method, r.request.url)
-    if r.cookies:
-        for cookie in r.cookies:
-            print(cookie)
-    if r.history:
-        print('REDIRECT', r.history)
     if not r.ok:
         raise ValueError('Request Failed: ', r.status_code, r.request.url, r.text)
-    #if '_hrank_session' not in r.cookies.keys():
-    #    raise ValueError('The _hrank_session is not there!', r.cookies.keys())
-
-def printText(r, *args, **kwargs):
-    print(r.text)
