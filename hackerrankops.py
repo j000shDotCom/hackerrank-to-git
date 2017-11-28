@@ -18,7 +18,8 @@ SUBMISSIONS_GROUPED = SUBMISSIONS + '/grouped'
 class HRClient():
     def __init__(self, username, password):
         self.session = Session()
-        self.session.hooks['response'].extend([self.includeSessionInHook(f) for f in [getCsrf, logAndValidate]])
+        # TODO remove getCSRF from all hooks
+        self.session.hooks['response'].append(addArgsToHook(logAndValidate, getCsrf, session = self.session))
         self.login(username, password)
 
     def __enter__(self):
@@ -42,11 +43,13 @@ class HRClient():
     def getNewModels(self, models):
         if not models:
             models = {}
+
         contests = {}
         url = HR_REST + '/hackers/me/myrank_contests'
         contestSlugs = {'master'} | {c['slug'] for c in self.getModels(url)}
         for slug in contestSlugs:
             url = HR_REST + CONTESTS + '/' + slug
+
             submissionIds = {s['id'] for s in self.getModels(url + SUBMISSIONS)}
             if slug in models and 'submissions' in models[slug]:
                 submissionIds -= models[slug]['submissions'].keys()
@@ -54,12 +57,14 @@ class HRClient():
             if not submissionIds:
                 continue
 
+            submissions = contest['submissions'].values()
+            challengeSlugs = {sub.json()['model']['challenge_slug'] for sub in submissions}
+
             contest = {}
             contest['model'] = self.session.get(url).json()['model']
-            contest['submissions'] = self.getModelsKeyed(url + SUBMISSIONS, submissionIds) # TODO enumerate
-            submissions = contest['submissions'].values()
-            challengeSlugs = {sub.json()['model']['challenge_slug'] for sub in submissions} # TODO enumerate
+            contest['submissions'] = self.getModelsKeyed(url + SUBMISSIONS, submissionIds)
             contest['challenges'] = self.getModelsKeyed(url + CHALLENGES, challengeSlugs)
+
             contests[slug] = contest
 
         return contests
@@ -67,8 +72,8 @@ class HRClient():
     def getModelsKeyed(self, url, ids):
         models = {}
 
-        for i in ids:
-            model = self.session.get(url + '/' + str(i))
+        for curr, i in enumerate(ids):
+            model = self.session.get(url + '/' + str(i), curr = curr, total = len(ids))
             if not model:
                 continue
             models[i] = model
@@ -100,12 +105,12 @@ class HRClient():
         json = {"updated_modal_profiled_data": {"updated": True}}
         return self.session.put(url, json = json).json()['model']
 
-    def includeSessionInHook(self, *factoryArgs, **factoryKwargs):
-        def responseHook(response, *requestArgs, **requestKwargs):
-            for func in factoryArgs:
-                func(response, session = self.session)
-            return response
-        return responseHook
+def addArgsToHook(*factoryArgs, **factoryKwargs):
+    def responseHook(response, *requestArgs, **requestKwargs):
+        for func in factoryArgs:
+            func(response, **factoryKwargs, **requestKwargs)
+        return response
+    return responseHook
 
 def mergeModels(models, newModels):
     if not newModels:
@@ -117,6 +122,7 @@ def mergeModels(models, newModels):
         if slug not in models:
             models[slug] = newModels[slug]
             continue
+
         old = models[slug]
         new = newModels[slug]
         old['model'] = new['model']
@@ -138,7 +144,7 @@ def sortModels(contests):
     return models
 
 def getCsrf(r, *args, **kwargs):
-    csrfHtml = BeautifulSoup(r.text, 'html5lib').find(id='csrf-token')
+    csrfHtml = BeautifulSoup(r.text, 'html.parser').find(id = 'csrf-token')
     if csrfHtml:
         csrfHtml = csrfHtml['content']
 
@@ -159,5 +165,7 @@ def getCsrf(r, *args, **kwargs):
 
 def logAndValidate(r, *args, **kwargs):
     print(r.status_code, r.request.method, r.request.url, (r.request.body if r.request.body else ''))
+    if 'request' in kwargs:
+        print('[' + curr + '/' + total + ']')
     if not r.ok:
         raise ValueError('Request Failed: ', r.status_code, r.request.url, r.text)
