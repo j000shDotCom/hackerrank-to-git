@@ -30,9 +30,9 @@ class HRClient():
     def login(self, username, password):
         self.session.get(HR + '/dashboard')
         data = {
-            'login' : username,
-            'password' : password,
-            'remember_me' : False,
+            'login': username,
+            'password': password,
+            'remember_me': False,
         }
         self.session.post(HR + '/auth/login', json = data)
 
@@ -43,9 +43,11 @@ class HRClient():
         if not models:
             models = {}
         contests = {}
-        for slug in self.getContestSlugs():
+        url = HR_REST + '/hackers/me/myrank_contests'
+        contestSlugs = {'master'} | {c['slug'] for c in self.getModels(url)}
+        for slug in contestSlugs:
             url = HR_REST + CONTESTS + '/' + slug
-            submissionIds = self.getSubmissionIds(url)
+            submissionIds = {s['id'] for s in self.getModels(url + SUBMISSIONS)}
             if slug in models and 'submissions' in models[slug]:
                 submissionIds -= models[slug]['submissions'].keys()
 
@@ -59,25 +61,18 @@ class HRClient():
             challengeSlugs = {sub.json()['model']['challenge_slug'] for sub in submissions} # TODO enumerate
             contest['challenges'] = self.getModelsKeyed(url + CHALLENGES, challengeSlugs)
             contests[slug] = contest
+
         return contests
-
-    def getContestSlugs(self):
-        url = HR_REST + '/hackers/me/myrank_contests?limit=100&type=recent'
-        return {'master'} | {c['slug'] for c in self.getModels(url)}
-
-    def getChallengeSlugs(self, url):
-        return {c['slug'] for c in self.getModels(url + 'CHALLENGES')}
-
-    def getSubmissionIds(self, url):
-        return {s['id'] for s in self.getModels(url + SUBMISSIONS)}
 
     def getModelsKeyed(self, url, ids):
         models = {}
+
         for i in ids:
             model = self.session.get(url + '/' + str(i))
             if not model:
                 continue
             models[i] = model
+
         return models
 
     # get all models from particular GET request
@@ -90,9 +85,13 @@ class HRClient():
 
         # get the rest of the models (offset, total]
         if offset < total:
-            params = {'offset': offset, 'limit': total}
+            params = {
+                'offset': offset,
+                'limit': total
+            }
             # use params instead of json or data to append to GET query string
-            models.extend(self.session.get(url, params = params).json()['models'])
+            newModels = self.session.get(url, params = params).json()['models']
+            models.extend(newModels)
 
         return models
 
@@ -101,9 +100,9 @@ class HRClient():
         json = {"updated_modal_profiled_data": {"updated": True}}
         return self.session.put(url, json = json).json()['model']
 
-    def includeSessionInHook(self, *factory_args, **factory_kwargs):
-        def responseHook(response, *request_args, **request_kwargs):
-            for func in factory_args:
+    def includeSessionInHook(self, *factoryArgs, **factoryKwargs):
+        def responseHook(response, *requestArgs, **requestKwargs):
+            for func in factoryArgs:
                 func(response, session = self.session)
             return response
         return responseHook
@@ -113,6 +112,7 @@ def mergeModels(models, newModels):
         return models or {}
     if not models:
         return newModels or {}
+
     for slug in newModels.keys():
         if slug not in models:
             models[slug] = newModels[slug]
@@ -122,21 +122,23 @@ def mergeModels(models, newModels):
         old['model'] = new['model']
         old['challenges'].update(new['challenges'])
         old['submissions'].update(new['submissions'])
+
     return models
 
 def sortModels(contests):
     models = dict()
+
     for co in contests.values():
         models[co['model']['created_at']] = (co, 'co')
         for ch in co['challenges'].values():
             models[ch['created_at']] = (ch, 'ch')
         for s in co['submissions'].values():
             models[s['created_at']] = (s, 'sub')
+
     return models
 
 def getCsrf(r, *args, **kwargs):
-    soup = BeautifulSoup(r.text, 'html5lib')
-    csrfHtml = soup.find(id='csrf-token')
+    csrfHtml = BeautifulSoup(r.text, 'html5lib').find(id='csrf-token')
     if csrfHtml:
         csrfHtml = csrfHtml['content']
 
