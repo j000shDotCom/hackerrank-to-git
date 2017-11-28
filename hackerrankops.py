@@ -65,12 +65,13 @@ class HRClient():
             if not submissionIds:
                 continue
 
-            submissions = contest['submissions'].values()
-            challengeSlugs = {sub.json()['model']['challenge_slug'] for sub in submissions}
+            contestModel = self.session.get(url).json()['model']
+            submissions = self.getModelsKeyed(url + SUBMISSIONS, submissionIds)
+            challengeSlugs = {sub.json()['model']['challenge_slug'] for sub in submissions.values()}
 
             contest = {}
-            contest['model'] = self.session.get(url).json()['model']
-            contest['submissions'] = self.getModelsKeyed(url + SUBMISSIONS, submissionIds)
+            contest['model'] = contestModel
+            contest['submissions'] = submissions
             contest['challenges'] = self.getModelsKeyed(url + CHALLENGES, challengeSlugs)
 
             contests[slug] = contest
@@ -79,9 +80,10 @@ class HRClient():
 
     def getModelsKeyed(self, url, ids):
         models = {}
+        count = len(ids)
 
         for curr, i in enumerate(ids):
-            model = self.session.get(url + '/' + str(i), curr = curr, total = len(ids))
+            model = self.session.get(url + '/' + str(i), data = {curr: count})
             if not model:
                 continue
             models[i] = model
@@ -170,8 +172,6 @@ def getCsrf(r, *args, **kwargs):
         kwargs['session'].headers.update({'X-CSRF-TOKEN': csrf})
 
 def logAndValidate(r, *args, **kwargs):
-    print(r.status_code, r.request.method, r.request.url, (r.request.body if r.request.body else ''))
-    if 'request' in kwargs:
-        print('[' + curr + '/' + total + ']')
+    print(r.status_code, r.request.method, r.request.url, r.request.body)
     if not r.ok:
         raise ValueError('Request Failed: ', r.status_code, r.request.url, r.text)
