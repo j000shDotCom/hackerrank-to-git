@@ -54,9 +54,9 @@ class HRClient():
 
             contest = {}
             contest['model'] = self.session.get(url).json()['model']
-            contest['submissions'] = self.getModelsKeyed(url + SUBMISSIONS, submissionIds)
+            contest['submissions'] = self.getModelsKeyed(url + SUBMISSIONS, submissionIds) # TODO enumerate
             submissions = contest['submissions'].values()
-            challengeSlugs = {sub.json()['model']['challenge_slug'] for sub in submissions}
+            challengeSlugs = {sub.json()['model']['challenge_slug'] for sub in submissions} # TODO enumerate
             contest['challenges'] = self.getModelsKeyed(url + CHALLENGES, challengeSlugs)
             contests[slug] = contest
         return contests
@@ -80,15 +80,21 @@ class HRClient():
             models[i] = model
         return models
 
+    # get all models from particular GET request
     def getModels(self, url):
+        # get initial set of models, usually 4 to 10
         r = self.session.get(url).json()
-        return r['models'] + self.getModelRange(url, len(r['models']), r['total'])
+        models = r['models']
+        offset = len(r['models'])
+        total = r['total']
 
-    def getModelRange(self, url, start, end):
-        if start >= end:
-            return []
-        offset = {'params': {'offset': start, 'limit': end}}
-        return self.session.get(url, json = offset).json()['models']
+        # get the rest of the models (offset, total]
+        if offset < total:
+            params = {'offset': offset, 'limit': total}
+            # use params instead of json or data to append to GET query string
+            models.extend(self.session.get(url, params = params).json()['models'])
+
+        return models
 
     def getUserModel(self):
         url = HR_REST + CONTESTS + '/master/hackers/me'
@@ -150,6 +156,6 @@ def getCsrf(r, *args, **kwargs):
         kwargs['session'].headers.update({'X-CSRF-TOKEN': csrf})
 
 def logAndValidate(r, *args, **kwargs):
-    print(r.status_code, r.request.method, r.request.url)
+    print(r.status_code, r.request.method, r.request.url, (r.request.body if r.request.body else ''))
     if not r.ok:
         raise ValueError('Request Failed: ', r.status_code, r.request.url, r.text)
