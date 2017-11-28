@@ -18,7 +18,6 @@ SUBMISSIONS_GROUPED = SUBMISSIONS + '/grouped'
 class HRClient():
     def __init__(self, username, password):
         self.session = Session()
-        # TODO remove getCSRF from all hooks
         self.session.hooks['response'].append(addArgsToHook(logAndValidate, getCsrf, session = self.session))
         self.login(username, password)
 
@@ -28,17 +27,26 @@ class HRClient():
     def __exit__(self, *args):
         self.logout()
 
+    # added dummy timeout argument to not skip CSRF passing
     def login(self, username, password):
-        self.session.get(HR + '/dashboard')
+        self.session.get(HR + '/dashboard', timeout = 120)
         data = {
             'login': username,
             'password': password,
             'remember_me': False,
         }
-        self.session.post(HR + '/auth/login', json = data)
+        self.session.post(HR + '/auth/login', json = data, timeout = 120)
 
+    # added dummy timeout argument to not skip CSRF passing
     def logout(self):
-        return self.session.delete(HR + '/auth/logout')
+        return self.session.delete(HR + '/auth/logout', timeout = 120)
+
+    # added dummy timeout argument to not skip CSRF passing
+    def getUserModel(self):
+        url = HR_REST + CONTESTS + '/master/hackers/me'
+        json = {"updated_modal_profiled_data": {"updated": True}}
+        hooks = {'response': addArgsToHook(logAndValidate, getCsrf, session = self.session)}
+        return self.session.put(url, json = json, hooks = hooks).json()['model']
 
     def getNewModels(self, models):
         if not models:
@@ -100,11 +108,6 @@ class HRClient():
 
         return models
 
-    def getUserModel(self):
-        url = HR_REST + CONTESTS + '/master/hackers/me'
-        json = {"updated_modal_profiled_data": {"updated": True}}
-        return self.session.put(url, json = json).json()['model']
-
 def addArgsToHook(*factoryArgs, **factoryKwargs):
     def responseHook(response, *requestArgs, **requestKwargs):
         for func in factoryArgs:
@@ -144,6 +147,9 @@ def sortModels(contests):
     return models
 
 def getCsrf(r, *args, **kwargs):
+    if not kwargs['timeout']:
+        return
+
     csrfHtml = BeautifulSoup(r.text, 'html.parser').find(id = 'csrf-token')
     if csrfHtml:
         csrfHtml = csrfHtml['content']
