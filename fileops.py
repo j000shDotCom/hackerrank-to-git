@@ -2,7 +2,8 @@
   This file does all the fancy git operations and file writing
 """
 import os
-from pickle import load, dump
+import json
+from pprint import pprint
 from bs4 import BeautifulSoup
 from sh import git
 
@@ -16,17 +17,14 @@ SUBMISSIONS_GROUPED = SUBMISSIONS + '/grouped'
 def getFullPath(path):
     return os.path.abspath(path)
 
-def loadPickle(filename):
+def load(filename):
     try:
-        models = load(open(filename, 'rb'))
-        print('loaded data from pickle')
-    except:
+        return json.load(open(filename, 'r'))
+    except FileNotFoundError as e:
         return None
-    return models
 
-def dumpPickle(filename, data):
-    dump(data, open(filename, 'wb'))
-    print('successfully dumped data')
+def dump(filename, data):
+    json.dump(data, open(filename, 'w'))
 
 def initializeDir(path, user, repo = None):
     if not os.path.exists(path):

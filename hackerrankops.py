@@ -92,10 +92,10 @@ class HRClient():
 
     def getModelsKeyed(self, url, ids):
         models = {}
-        count = len(ids)
+        total = len(ids)
 
         for curr, i in enumerate(ids):
-            model = self.session.get(url + '/' + str(i), data = {'curr': curr + 1, 'total': count, 'rem': total - curr - 1}).json()['model']
+            model = self.session.get(url + '/' + str(i), data = {'remaining': total - curr - 1}).json()['model']
             if not model:
                 continue
             models[i] = model
