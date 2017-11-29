@@ -4,6 +4,7 @@
 
 import re
 from requests import Session
+from requests.auth import AuthBase, HTTPBasicAuth
 import json
 import logging # TODO get rid of these print statements!
 from bs4 import BeautifulSoup
@@ -14,6 +15,17 @@ CONTESTS = '/contests'
 CHALLENGES = '/challenges'
 SUBMISSIONS = '/submissions'
 SUBMISSIONS_GROUPED = SUBMISSIONS + '/grouped'
+
+# TODO use the request auth parameter
+class HRAuth(AuthBase):
+    def __init__(self, username, password, csrf):
+        self.username = username
+        self.password = password
+        self.csrf = csrf
+
+    def __call__(self, r):
+        r.headers['X-CSRF-TOKEN'] = self.csrf
+        return r
 
 class HRClient():
     def __init__(self, username, password):
@@ -54,7 +66,7 @@ class HRClient():
 
         contests = {}
         url = HR_REST + '/hackers/me/myrank_contests'
-        contestSlugs = {'master'} | {c['slug'] for c in self.getModels(url)}
+        contestSlugs = {'master'} | {c['slug'] for c in self.getModels(url, type = 'recent')}
         for slug in contestSlugs:
             url = HR_REST + CONTESTS + '/' + slug
 
@@ -67,7 +79,7 @@ class HRClient():
 
             contestModel = self.session.get(url).json()['model']
             submissions = self.getModelsKeyed(url + SUBMISSIONS, submissionIds)
-            challengeSlugs = {sub.json()['model']['challenge_slug'] for sub in submissions.values()}
+            challengeSlugs = {sub['challenge_slug'] for sub in submissions.values()}
 
             contest = {}
             contest['model'] = contestModel
@@ -83,7 +95,7 @@ class HRClient():
         count = len(ids)
 
         for curr, i in enumerate(ids):
-            model = self.session.get(url + '/' + str(i), data = {curr: count})
+            model = self.session.get(url + '/' + str(i), data = {'curr': curr + 1, 'total': count, 'rem': total - curr - 1}).json()['model']
             if not model:
                 continue
             models[i] = model
@@ -91,22 +103,19 @@ class HRClient():
         return models
 
     # get all models from particular GET request
-    def getModels(self, url):
+    def getModels(self, url, **params):
         # get initial set of models, usually 4 to 10
-        r = self.session.get(url).json()
+        r = self.session.get(url, params = params).json()
         models = r['models']
         offset = len(r['models'])
         total = r['total']
 
         # get the rest of the models (offset, total]
         if offset < total:
-            params = {
-                'offset': offset,
-                'limit': total
-            }
-            # use params instead of json or data to append to GET query string
-            newModels = self.session.get(url, params = params).json()['models']
-            models.extend(newModels)
+            params['offset'] = offset
+            params['limit'] = total
+            r = self.session.get(url, params = params).json()
+            models.extend(r['models'])
 
         return models
 
@@ -172,6 +181,10 @@ def getCsrf(r, *args, **kwargs):
         kwargs['session'].headers.update({'X-CSRF-TOKEN': csrf})
 
 def logAndValidate(r, *args, **kwargs):
-    print(r.status_code, r.request.method, r.request.url, r.request.body)
+    parts = [r.status_code, r.request.method, r.request.url]
+    if r.request.body:
+        parts.append(r.request.body)
+    print(*parts)
+
     if not r.ok:
         raise ValueError('Request Failed: ', r.status_code, r.request.url, r.text)
