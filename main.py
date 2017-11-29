@@ -4,13 +4,16 @@
 
  Sign into HackerRank and archive solutions in a git repository (where they should be)
 """
+
 import configparser
 from argparse import ArgumentParser
-from hackerrankops import HRClient
+from hackerrankops import HRClient, mergeModels, sortModels
 import fileops as IO
 
 import better_exceptions
 
+# TODO pull username and password from environment variables (easier to call from Heroku)
+# could even store the session id, cookie, or token here
 def getArgs():
     parser = ArgumentParser(description='Free your HackerRank.com code!')
     parser.add_argument('-u', '--username', action='store', required=True, help='account username')
@@ -28,21 +31,21 @@ def main():
     archivePath = IO.getFullPath(args.dir)
     models = IO.loadPickle(picklePath)
 
+    user = None
+    newModels = None
     with HRClient(args.username, args.password) as hrankclient:
         user = hrankclient.getUserModel()
         newModels = hrankclient.getNewModels(models)
 
-    return
     if not newModels:
         print('no new submissions. exiting.')
         return
 
-    allModels = HR.mergeModels(models, newModels)
+    allModels = mergeModels(models, newModels)
     IO.dumpPickle(picklePath, allModels)
 
     IO.initializeDir(archivePath, user, args.dir)
-    sortedModels = HR.sortModels(newModels)
+    sortedModels = sortModels(newModels)
     IO.writeModels(sortedModels, args.html)
 
 main()
-
