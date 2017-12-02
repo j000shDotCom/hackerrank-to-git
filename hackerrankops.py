@@ -60,6 +60,7 @@ class HRClient():
         hooks = {'response': addArgsToHook(logAndValidate, getCsrf, session = self.session)}
         return self.session.put(url, json = json, hooks = hooks).json()['model']
 
+    # TODO add validation and sanity checks on model counts
     def getNewModels(self, models):
         if not models:
             models = {}
@@ -70,22 +71,31 @@ class HRClient():
         for slug in contestSlugs:
             url = HR_REST + CONTESTS + '/' + slug
 
+            # get submission info, not models
             submissionIds = {s['id'] for s in self.getModels(url + SUBMISSIONS)}
             if slug in models and 'submissions' in models[slug]:
                 submissionIds -= models[slug]['submissions'].keys()
 
+            # break out early if contest is already represented
+            # TODO break each of these separate processes into separate functions and do sequentially
             if not submissionIds:
                 continue
 
-            contestModel = self.session.get(url).json()['model']
-            submissions = self.getModelsKeyed(url + SUBMISSIONS, submissionIds)
-            challengeSlugs = {sub['challenge_slug'] for sub in submissions.values()}
+            # TODO is this necessary? does every challenge have an id?
+            # get challenge info, not models
+            challengeIds = {c['id'] for c in self.getModels(url + CHALLENGES)}
+            if slug in models and 'challenges' in models[slug]:
+                challengeIds -= models[slug]['challenges'].keys()
 
+            # uncomment if only want challenge data for challenges attempted or with accompanying submissions
+            #challengeSlugs = {sub['challenge_slug'] for sub in submissions.values()}
+            #challengeIds = {sub['challenge_id'] for sub in submissions.values()}
+
+            # begin creation of contest
             contest = {}
-            contest['model'] = contestModel
-            contest['submissions'] = submissions
-            contest['challenges'] = self.getModelsKeyed(url + CHALLENGES, challengeSlugs)
-
+            contest['model'] = self.session.get(url).json()['model']
+            contest['submissions'] = self.getModelsKeyed(url + SUBMISSIONS, submissionIds)
+            contest['challenges'] = self.getModelsKeyed(url + CHALLENGES, challengeIds)
             contests[slug] = contest
 
         return contests
@@ -103,21 +113,18 @@ class HRClient():
         return models
 
     # get all models from particular GET request
+    # NOTE must make two calls because order is sometimes not preserved between requests
     def getModels(self, url, **params):
-        # get initial set of models, usually 4 to 10
         r = self.session.get(url, params = params).json()
-        models = r['models']
-        offset = len(r['models'])
+        count = len(r['models'])
         total = r['total']
 
-        # get the rest of the models (offset, total]
-        if offset < total:
-            params['offset'] = offset
-            params['limit'] = total
-            r = self.session.get(url, params = params).json()
-            models.extend(r['models'])
+        # return models if all have been acquired
+        if count >= total:
+            return r['models']
 
-        return models
+        params['limit'] = total
+        return self.session.get(url, params = params).json()['models']
 
 def addArgsToHook(*factoryArgs, **factoryKwargs):
     def responseHook(response, *requestArgs, **requestKwargs):
