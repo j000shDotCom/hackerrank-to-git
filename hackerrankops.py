@@ -105,9 +105,12 @@ class HRClient():
         total = len(ids)
 
         for curr, i in enumerate(ids):
-            model = self.session.get(url + '/' + str(i), data = {'remaining': total - curr - 1}).json()['model']
-            if not model:
-                continue
+            try:
+                model = self.session.get(url + '/' + str(i), data = {'remaining': total - curr - 1}).json()['model']
+                if not model:
+                    continue
+            except ValueError as e:
+                model = self.session.get(url + '/' + str(i), data = {'remaining': total - curr - 1}).json()['model']
             models[i] = model
 
         return models
@@ -164,10 +167,10 @@ def sortModels(contests):
 
     return models
 
+
 def getCsrf(r, *args, **kwargs):
     if not kwargs['timeout']:
         return
-
     csrfHtml = BeautifulSoup(r.text, 'html.parser').find(id = 'csrf-token')
     if csrfHtml:
         csrfHtml = csrfHtml['content']
